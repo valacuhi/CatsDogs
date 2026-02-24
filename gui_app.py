@@ -2,6 +2,14 @@ import tkinter as tk
 from tkinter import messagebox
 from game_logic import GameState
 from ai_bridge import get_llm_move
+import pygame
+import os
+import glob
+import random
+try:
+    from PIL import Image, ImageTk
+except ImportError:
+    pass
 
 class CatsDogsApp(tk.Tk):
     def __init__(self):
@@ -11,6 +19,14 @@ class CatsDogsApp(tk.Tk):
         
         # Make the main window look nicer
         self.config(bg="#e8e8e8")
+        
+        # Initialize Audio
+        pygame.mixer.init()
+        self.sounds = {}
+        for s in ["cat_turn", "dog_turn", "cat_win_round", "dog_win_round", "cat_win_tournament", "dog_win_tournament"]:
+            files = glob.glob(os.path.join("Audio", f"{s}*.mp3"))
+            if files:
+                self.sounds[s] = [pygame.mixer.Sound(f) for f in files]
         
         self.game = GameState()
         self.cat_wins = 0
@@ -124,11 +140,14 @@ class CatsDogsApp(tk.Tk):
             
         if self.game.make_move(r, c, 1): # Player 1 (Cat)
             self.buttons[r][c].config(image=self.cat_img, text="")
+            if "cat_turn" in self.sounds and self.sounds["cat_turn"]:
+                random.choice(self.sounds["cat_turn"]).play()
             
             if self.check_game_over():
                 return
                 
-            self.trigger_ai_move()
+            self.ai_thinking = True
+            self.after(1000, self.trigger_ai_move)
 
     def trigger_ai_move(self):
         self.ai_thinking = True
@@ -162,6 +181,8 @@ class CatsDogsApp(tk.Tk):
         if r is not None and c is not None:
             if self.game.make_move(r, c, 2):  # Player 2 (Dog)
                 self.buttons[r][c].config(image=self.dog_img, text="")
+                if "dog_turn" in self.sounds and self.sounds["dog_turn"]:
+                    random.choice(self.sounds["dog_turn"]).play()
         
         self.check_game_over()
 
@@ -174,9 +195,13 @@ class CatsDogsApp(tk.Tk):
             if winner == 1:
                 self.cat_wins += 1
                 self.status_label.config(text="Cats win the round!", fg="orange")
+                if "cat_win_round" in self.sounds and self.sounds["cat_win_round"]:
+                    random.choice(self.sounds["cat_win_round"]).play()
             else:
                 self.dog_wins += 1
                 self.status_label.config(text="Dogs win the round!", fg="orange")
+                if "dog_win_round" in self.sounds and self.sounds["dog_win_round"]:
+                    random.choice(self.sounds["dog_win_round"]).play()
                 
             self.update_score()
             self.end_round()
@@ -194,8 +219,35 @@ class CatsDogsApp(tk.Tk):
                 
         if self.cat_wins >= self.target_wins or self.dog_wins >= self.target_wins:
             champion = "Cats" if self.cat_wins >= self.target_wins else "Dogs"
+            
+            # Play tournament win sound
+            sound_key = "cat_win_tournament" if self.cat_wins >= self.target_wins else "dog_win_tournament"
+            if sound_key in self.sounds and self.sounds[sound_key]:
+                random.choice(self.sounds[sound_key]).play()
+                
             self.status_label.config(text=f"{champion} won the tournament!", fg="red", font=("Arial", 12, "bold"))
             messagebox.showinfo("Tournament Over", f"🎉 {champion} win the tournament! 🎉")
+            
+            # Show the victory image popup
+            try:
+                img_file = "cats_win.png" if self.cat_wins >= self.target_wins else "dogs_win.png"
+                if os.path.exists(img_file):
+                    win_window = tk.Toplevel(self)
+                    win_window.title(f"{champion} Win!")
+                    win_window.config(bg="white")
+                    
+                    img = Image.open(img_file)
+                    img.thumbnail((600, 600), Image.Resampling.LANCZOS)
+                    photo = ImageTk.PhotoImage(img)
+                    
+                    lbl = tk.Label(win_window, image=photo, bg="white")
+                    lbl.image = photo  # keep reference
+                    lbl.pack(padx=20, pady=20)
+                    
+                    tk.Button(win_window, text="Awesome!", font=("Arial", 14), command=win_window.destroy).pack(pady=10)
+            except Exception as e:
+                print(f"Could not load victory image: {e}")
+                
             self.next_round_btn.config(text="New Tournament", state=tk.NORMAL, bg="#2196F3")
         else:
             self.next_round_btn.config(text="Next Round", state=tk.NORMAL, bg="#4CAF50")

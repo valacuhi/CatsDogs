@@ -17,9 +17,11 @@ def format_board(board):
     0 -> Empty (.), 1 -> Cat (C), 2 -> Dog (D)
     """
     symbols = {0: '.', 1: 'C', 2: 'D'}
+    rows = len(board)
+    cols = len(board[0]) if rows > 0 else 0
     rows_str: list[str] = []
-    for r in range(15):
-        row = [symbols[board[r][c]] for c in range(3)]
+    for r in range(rows):
+        row = [symbols[board[r][c]] for c in range(cols)]
         rows_str.append(f"Row {r:02d}: " + "  ".join(row))
     return "\n".join(rows_str)
 
@@ -29,15 +31,18 @@ def get_llm_move(board_state, available_moves, ai_provider, model_name, temperat
     If the AI fails to produce a valid move, it falls back to a random legal move to prevent game breakage.
     """
     def worker():
-        prompt = f"""You are the "Grandmaster Architect" playing a specialized 15x3 version of Tic-Tac-Toe.
+        rows = len(board_state)
+        cols = len(board_state[0]) if rows > 0 else 0
+        prompt = f"""You are the "Grandmaster Architect" playing a specialized {rows}x{cols} version of Tic-Tac-Toe.
 You are playing as 'D' (Dog). The human player is 'C' (Cat). Empty spaces are '.'.
 
 Winning Conditions:
-- Horizontal: 3 in a row (a full row).
-- Vertical: 4 in a column.
-- Diagonal: 3 in a row diagonally.
+- Horizontal: 3 or 4 in a row (a full row).
+- Vertical: 4 or 5 in a column.
+- Diagonal: 3 or 4 in a row diagonally.
+(Check the board size to determine exact winning lengths).
 
-The board has 15 rows (0-14) and 3 columns (0-2).
+The board has {rows} rows (0-{rows-1}) and {cols} columns (0-{cols-1}).
 Current Board State:
 {format_board(board_state)}
 

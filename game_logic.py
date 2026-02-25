@@ -2,9 +2,12 @@ import math
 import random
 
 class GameState:
-    def __init__(self):
-        self.rows = 15
-        self.cols = 3
+    def __init__(self, rows=12, cols=3, win_v=4, win_h=3, win_d=3):
+        self.rows = rows
+        self.cols = cols
+        self.win_v = win_v
+        self.win_h = win_h
+        self.win_d = win_d
         # 0 = Empty, 1 = Cat (Player 1), 2 = Dog (Player 2 / AI)
         self.board = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
         self.current_turn = 1 # 1 always starts (Cat)
@@ -22,28 +25,54 @@ class GameState:
     def check_win(self):
         """
         Scans the board and returns (winning_player, [(r1, c1), ...]) or (0, None).
-        Conditions: Vert: 4, Horiz: 3, Diag: 3.
+        Conditions depend on init parameters.
         """
-        # Horizontal: 3
+        # Horizontal: win_h
         for r in range(self.rows):
-            if self.board[r][0] != 0 and self.board[r][0] == self.board[r][1] == self.board[r][2]:
-                return self.board[r][0], [(r, 0), (r, 1), (r, 2)]
+            for c in range(self.cols - self.win_h + 1):
+                if self.board[r][c] != 0:
+                    win = True
+                    for i in range(1, self.win_h):
+                        if self.board[r][c+i] != self.board[r][c]:
+                            win = False
+                            break
+                    if win:
+                        return self.board[r][c], [(r, c+i) for i in range(self.win_h)]
 
-        # Vertical: 4
-        for r in range(self.rows - 3):
+        # Vertical: win_v
+        for r in range(self.rows - self.win_v + 1):
             for c in range(self.cols):
-                if self.board[r][c] != 0 and self.board[r][c] == self.board[r+1][c] == self.board[r+2][c] == self.board[r+3][c]:
-                    return self.board[r][c], [(r, c), (r+1, c), (r+2, c), (r+3, c)]
+                if self.board[r][c] != 0:
+                    win = True
+                    for i in range(1, self.win_v):
+                        if self.board[r+i][c] != self.board[r][c]:
+                            win = False
+                            break
+                    if win:
+                        return self.board[r][c], [(r+i, c) for i in range(self.win_v)]
 
-        # Diagonal: 3 (Top-left to Bottom-right & Bottom-left to Top-right)
-        for r in range(self.rows - 2):
-            for c in range(self.cols - 2):
+        # Diagonal: win_d
+        for r in range(self.rows - self.win_d + 1):
+            for c in range(self.cols - self.win_d + 1):
                 # Right-down
-                if self.board[r][c] != 0 and self.board[r][c] == self.board[r+1][c+1] == self.board[r+2][c+2]:
-                    return self.board[r][c], [(r, c), (r+1, c+1), (r+2, c+2)]
-                # Right-up (starting from r+2)
-                if self.board[r+2][c] != 0 and self.board[r+2][c] == self.board[r+1][c+1] == self.board[r][c+2]:
-                    return self.board[r+2][c], [(r+2, c), (r+1, c+1), (r, c+2)]
+                if self.board[r][c] != 0:
+                    win = True
+                    for i in range(1, self.win_d):
+                        if self.board[r+i][c+i] != self.board[r][c]:
+                            win = False
+                            break
+                    if win:
+                        return self.board[r][c], [(r+i, c+i) for i in range(self.win_d)]
+                
+                # Right-up (starting from bottom)
+                if self.board[r + self.win_d - 1][c] != 0:
+                    win = True
+                    for i in range(1, self.win_d):
+                        if self.board[r + self.win_d - 1 - i][c+i] != self.board[r + self.win_d - 1][c]:
+                            win = False
+                            break
+                    if win:
+                        return self.board[r + self.win_d - 1][c], [(r + self.win_d - 1 - i, c+i) for i in range(self.win_d)]
 
         return 0, None
 
@@ -72,8 +101,8 @@ class GameState:
                 break
 
         if not has_piece:
-            # If empty, return middle of the board to start
-            return [(7, 1)]
+            # If empty, return roughly the middle of the board to start
+            return [(self.rows // 2, self.cols // 2)]
 
         for r in range(self.rows):
             for c in range(self.cols):
@@ -95,11 +124,11 @@ class GameState:
                         moves.append((r, c))
         return moves
 
-    def minimax(self, depth, is_maximizing, alpha, beta):
+    def minimax(self, depth, is_maximizing, alpha, beta, ai_team, human_team):
         winner, _ = self.check_win()
-        if winner == 2:
+        if winner == ai_team:
             return 100 + depth  # AI wins (fastest win)
-        elif winner == 1:
+        elif winner == human_team:
             return -100 - depth # Human wins (slowest loss)
         elif self.is_draw():
             return 0
@@ -114,8 +143,8 @@ class GameState:
         if is_maximizing:
             max_eval = -math.inf
             for r, c in moves:
-                self.board[r][c] = 2
-                eval = self.minimax(depth - 1, False, alpha, beta)
+                self.board[r][c] = ai_team
+                eval = self.minimax(depth - 1, False, alpha, beta, ai_team, human_team)
                 self.board[r][c] = 0
                 max_eval = max(max_eval, eval)
                 alpha = max(alpha, eval)
@@ -125,8 +154,8 @@ class GameState:
         else:
             min_eval = math.inf
             for r, c in moves:
-                self.board[r][c] = 1
-                eval = self.minimax(depth - 1, True, alpha, beta)
+                self.board[r][c] = human_team
+                eval = self.minimax(depth - 1, True, alpha, beta, ai_team, human_team)
                 self.board[r][c] = 0
                 min_eval = min(min_eval, eval)
                 beta = min(beta, eval)
@@ -134,9 +163,9 @@ class GameState:
                     break
             return min_eval
 
-    def get_best_move(self, depth=4):
+    def get_best_move(self, ai_team, depth=4):
         """
-        Returns the best move (r, c) for Player 2 (Dog) using Minimax with Alpha-Beta pruning.
+        Returns the best move (r, c) for the AI using Minimax with Alpha-Beta pruning.
         """
         best_eval = -math.inf
         best_move = None
@@ -152,9 +181,11 @@ class GameState:
         alpha = -math.inf
         beta = math.inf
         
+        human_team = 1 if ai_team == 2 else 2
+        
         for r, c in moves:
-            self.board[r][c] = 2
-            eval = self.minimax(depth - 1, False, alpha, beta)
+            self.board[r][c] = ai_team
+            eval = self.minimax(depth - 1, False, alpha, beta, ai_team, human_team)
             self.board[r][c] = 0
             
             if eval > best_eval:

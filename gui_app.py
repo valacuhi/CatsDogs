@@ -15,7 +15,7 @@ class CatsDogsApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Feline vs. Canine 15x3")
-        self.geometry("600x850")
+        self.geometry("600x950")
         
         # Make the main window look nicer
         self.config(bg="#e8e8e8")
@@ -28,7 +28,12 @@ class CatsDogsApp(tk.Tk):
             if files:
                 self.sounds[s] = [pygame.mixer.Sound(f) for f in files]
         
-        self.game = GameState()
+        # dynamic sizes
+        self.board_size_var = tk.StringVar(value="12x3")
+        self.rows = 12
+        self.cols = 3
+        
+        self.game = GameState(rows=12, cols=3, win_v=4, win_h=3, win_d=3)
         self.cat_wins = 0
         self.dog_wins = 0
         self.target_wins = 5
@@ -37,6 +42,11 @@ class CatsDogsApp(tk.Tk):
         self.cat_img = tk.PhotoImage(file="cat.png")
         self.dog_img = tk.PhotoImage(file="dog.png")
         
+        self.human_team = tk.IntVar(value=1)
+        self.sound_enabled = tk.BooleanVar(value=True)
+        self.starting_team = 1
+        self.ai_move_counter = 0
+        
         # Declare UI attributes to satisfy static type checkers / linters
         self.score_label: tk.Label
         self.ai_var: tk.StringVar
@@ -44,8 +54,17 @@ class CatsDogsApp(tk.Tk):
         self.temp_slider: tk.Scale
         self.status_label: tk.Label
         self.next_round_btn: tk.Button
+        self.team_rbtn_cat: tk.Radiobutton
+        self.team_rbtn_dog: tk.Radiobutton
+        self.sound_chk: tk.Checkbutton
+        self.size_rbtn_12x3: tk.Radiobutton
+        self.size_rbtn_12x4: tk.Radiobutton
+        self.interrupt_btn: tk.Button
+        self.board_container: tk.Frame
+        self.board_frame: tk.Frame
         
         self.create_widgets()
+        self.recreate_board_ui()
         
     def create_widgets(self):
         # ---------------- TOP BAR ----------------
@@ -68,6 +87,20 @@ class CatsDogsApp(tk.Tk):
         
         tk.Frame(sidebar, height=2, bg="#cccccc").pack(fill=tk.X, pady=10, padx=10)
         
+        tk.Label(sidebar, text="Board Size", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=5)
+        self.size_rbtn_12x3 = tk.Radiobutton(sidebar, text="12x3", variable=self.board_size_var, value="12x3", bg="#ffffff", font=("Arial", 10), command=self.on_size_change)
+        self.size_rbtn_12x3.pack(anchor="w", padx=10)
+        self.size_rbtn_12x4 = tk.Radiobutton(sidebar, text="12x4", variable=self.board_size_var, value="12x4", bg="#ffffff", font=("Arial", 10), command=self.on_size_change)
+        self.size_rbtn_12x4.pack(anchor="w", padx=10)
+        
+        tk.Label(sidebar, text="Your Team", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=5)
+        self.team_rbtn_cat = tk.Radiobutton(sidebar, text="Cats", variable=self.human_team, value=1, bg="#ffffff", font=("Arial", 10))
+        self.team_rbtn_cat.pack(anchor="w", padx=10)
+        self.team_rbtn_dog = tk.Radiobutton(sidebar, text="Dogs", variable=self.human_team, value=2, bg="#ffffff", font=("Arial", 10))
+        self.team_rbtn_dog.pack(anchor="w", padx=10)
+        
+        tk.Frame(sidebar, height=2, bg="#cccccc").pack(fill=tk.X, pady=10, padx=10)
+        
         tk.Label(sidebar, text="Opponent AI", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=5)
         self.ai_var = tk.StringVar(value="Local Minimax")
         
@@ -87,8 +120,13 @@ class CatsDogsApp(tk.Tk):
         self.temp_slider.set(0.1)
         self.temp_slider.pack(fill=tk.X, padx=10)
         
+        tk.Frame(sidebar, height=2, bg="#cccccc").pack(fill=tk.X, pady=10, padx=10)
+        
+        self.sound_chk = tk.Checkbutton(sidebar, text="Sound ON", variable=self.sound_enabled, bg="#ffffff", font=("Arial", 10, "bold"))
+        self.sound_chk.pack(pady=5)
+        
         self.status_label = tk.Label(sidebar, text="Ready", bg="#ffffff", fg="green", font=("Arial", 11, "italic"))
-        self.status_label.pack(pady=20)
+        self.status_label.pack(pady=10)
         
         tk.Frame(sidebar, height=2, bg="#cccccc").pack(fill=tk.X, pady=10, padx=10)
 
@@ -96,18 +134,27 @@ class CatsDogsApp(tk.Tk):
                                         font=("Arial", 12, "bold"), bg="#4CAF50", fg="white", activebackground="#45a049")
         self.next_round_btn.pack(pady=20, fill=tk.X, padx=20)
         
+        self.interrupt_btn = tk.Button(sidebar, text="Interrupt AI", state=tk.DISABLED, command=self.on_interrupt_click,
+                                       font=("Arial", 11, "bold"), bg="#f44336", fg="white", activebackground="#e53935")
+        self.interrupt_btn.pack(pady=0, fill=tk.X, padx=20)
+        
         # ---------------- BOARD ----------------
-        board_container = tk.Frame(self, bg="#e8e8e8")
-        board_container.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=20, pady=10)
+        self.board_container = tk.Frame(self, bg="#e8e8e8")
+        self.board_container.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=20, pady=10)
+        self.board_frame = None
         
-        # Center the board within the container
-        board_frame = tk.Frame(board_container, bg="#000000") 
-        board_frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+    def recreate_board_ui(self):
+        if self.board_frame is not None:
+            self.board_frame.destroy()
+            
+        self.board_frame = tk.Frame(self.board_container, bg="#000000") 
+        self.board_frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
         
-        for r in range(15):
+        self.buttons = []
+        for r in range(self.rows):
             row_buttons = []
-            for c in range(3):
-                cell_frame = tk.Frame(board_frame, width=55, height=55)
+            for c in range(self.cols):
+                cell_frame = tk.Frame(self.board_frame, width=55, height=55)
                 cell_frame.grid(row=r, column=c, padx=1, pady=1)
                 cell_frame.pack_propagate(False)
                 
@@ -120,14 +167,31 @@ class CatsDogsApp(tk.Tk):
                 row_buttons.append(btn)
             self.buttons.append(row_buttons)
 
+    def on_size_change(self):
+        size = self.board_size_var.get()
+        if size == "12x3":
+            self.rows = 12
+            self.cols = 3
+            self.game = GameState(rows=12, cols=3, win_v=4, win_h=3, win_d=3)
+        else:
+            self.rows = 12
+            self.cols = 4
+            self.game = GameState(rows=12, cols=4, win_v=5, win_h=4, win_d=4)
+        
+        self.recreate_board_ui()
+
     def show_rules(self):
-        msg = ("Welcome to Feline vs. Canine 15x3!\n\n"
-               "The Setup: 15 rows by 3 columns.\n"
+        msg = ("Welcome to Feline vs. Canine!\n\n"
+               "The Setup: Choose 12x3 or 12x4 board.\n"
                "Cats (😇) vs Dogs (😈)\n\n"
-               "Winning Conditions:\n"
-               "1. Vertical: 4-in-a-row in a single column\n"
-               "2. Horizontal: 3-in-a-row (an entire row)\n"
+               "Winning Conditions (12x3):\n"
+               "1. Vertical: 4-in-a-row\n"
+               "2. Horizontal: 3-in-a-row\n"
                "3. Diagonal: 3-in-a-row diagonally\n\n"
+               "Winning Conditions (12x4):\n"
+               "1. Vertical: 5-in-a-row\n"
+               "2. Horizontal: 4-in-a-row\n"
+               "3. Diagonal: 4-in-a-row diagonally\n\n"
                "Tournament Mode: Keep playing rounds until one faction reaches 5 wins.")
         messagebox.showinfo("Rules", msg)
 
@@ -138,10 +202,17 @@ class CatsDogsApp(tk.Tk):
         if self.game.board[r][c] != 0:
             return
             
-        if self.game.make_move(r, c, 1): # Player 1 (Cat)
-            self.buttons[r][c].config(image=self.cat_img, text="")
-            if "cat_turn" in self.sounds and self.sounds["cat_turn"]:
-                random.choice(self.sounds["cat_turn"]).play()
+        self.team_rbtn_cat.config(state=tk.DISABLED)
+        self.team_rbtn_dog.config(state=tk.DISABLED)
+        self.size_rbtn_12x3.config(state=tk.DISABLED)
+        self.size_rbtn_12x4.config(state=tk.DISABLED)
+            
+        if self.game.make_move(r, c, self.human_team.get()):
+            img = self.cat_img if self.human_team.get() == 1 else self.dog_img
+            snd = "cat_turn" if self.human_team.get() == 1 else "dog_turn"
+            self.buttons[r][c].config(image=img, text="")
+            if snd in self.sounds and self.sounds[snd] and self.sound_enabled.get():
+                random.choice(self.sounds[snd]).play()
             
             if self.check_game_over():
                 return
@@ -149,18 +220,33 @@ class CatsDogsApp(tk.Tk):
             self.ai_thinking = True
             self.after(1000, self.trigger_ai_move)
 
+    def on_interrupt_click(self):
+        if self.ai_thinking:
+            # Interrupting the AI
+            self.ai_move_counter += 1
+            self.ai_thinking = False
+            self.status_label.config(text="AI Interrupted!\nSelect new AI & Retry.", fg="red")
+            self.interrupt_btn.config(text="Retry AI Move", bg="#FF9800", activebackground="#F57C00", state=tk.NORMAL)
+        else:
+            # Retrying the AI move
+            self.trigger_ai_move()
+
     def trigger_ai_move(self):
         self.ai_thinking = True
+        self.ai_move_counter += 1
+        current_counter = self.ai_move_counter
+        self.interrupt_btn.config(text="Interrupt AI", state=tk.NORMAL, bg="#f44336", activebackground="#e53935")
                 
         ai_choice = self.ai_var.get()
         if "Minimax" in ai_choice:
             self.status_label.config(text="Minimax thinking...", fg="blue")
             self.update_idletasks()
             
+            ai_team = 3 - self.human_team.get()
             # depth=4 is usually instantaneous for this size, depth=5 or 6 could be used depending on performance
-            best_move = self.game.get_best_move(depth=4)
+            best_move = self.game.get_best_move(ai_team, depth=4)
             # Use after to allow UI strictly synchronous process to breathe momentarily
-            self.after(50, self.apply_ai_move, best_move[0] if best_move else None, best_move[1] if best_move else None)
+            self.after(50, lambda: self.apply_ai_move(best_move[0] if best_move else None, best_move[1] if best_move else None, current_counter))
         else:
             self.status_label.config(text="LLM AI thinking...", fg="purple")
             provider = "OpenRouter" if "OpenRouter" in ai_choice else "Google Gemini"
@@ -171,18 +257,25 @@ class CatsDogsApp(tk.Tk):
             
             # Callback ensures apply_ai_move runs back on the main Tkinter thread via `after(0, ...)`
             def callback(r, c):
-                self.after(0, self.apply_ai_move, r, c)
+                self.after(0, lambda: self.apply_ai_move(r, c, current_counter))
                 
             get_llm_move(self.game.board, moves, provider, model, temp, callback)
 
-    def apply_ai_move(self, r, c):
+    def apply_ai_move(self, r, c, counter_at_time_of_request):
+        if counter_at_time_of_request != self.ai_move_counter:
+            return  # Move was interrupted/cancelled
+            
         self.ai_thinking = False
+        self.interrupt_btn.config(text="Interrupt AI", state=tk.DISABLED, bg="#f44336", activebackground="#e53935")
         self.status_label.config(text="Your Turn", fg="green")
         if r is not None and c is not None:
-            if self.game.make_move(r, c, 2):  # Player 2 (Dog)
-                self.buttons[r][c].config(image=self.dog_img, text="")
-                if "dog_turn" in self.sounds and self.sounds["dog_turn"]:
-                    random.choice(self.sounds["dog_turn"]).play()
+            ai_team = 3 - self.human_team.get()
+            if self.game.make_move(r, c, ai_team):
+                img = self.cat_img if ai_team == 1 else self.dog_img
+                snd = "cat_turn" if ai_team == 1 else "dog_turn"
+                self.buttons[r][c].config(image=img, text="")
+                if snd in self.sounds and self.sounds[snd] and self.sound_enabled.get():
+                    random.choice(self.sounds[snd]).play()
         
         self.check_game_over()
 
@@ -195,13 +288,15 @@ class CatsDogsApp(tk.Tk):
             if winner == 1:
                 self.cat_wins += 1
                 self.status_label.config(text="Cats win the round!", fg="orange")
-                if "cat_win_round" in self.sounds and self.sounds["cat_win_round"]:
+                if "cat_win_round" in self.sounds and self.sounds["cat_win_round"] and self.sound_enabled.get():
                     random.choice(self.sounds["cat_win_round"]).play()
+                self.starting_team = 2 # Loser starts next round
             else:
                 self.dog_wins += 1
                 self.status_label.config(text="Dogs win the round!", fg="orange")
-                if "dog_win_round" in self.sounds and self.sounds["dog_win_round"]:
+                if "dog_win_round" in self.sounds and self.sounds["dog_win_round"] and self.sound_enabled.get():
                     random.choice(self.sounds["dog_win_round"]).play()
+                self.starting_team = 1 # Loser starts next round
                 
             self.update_score()
             self.end_round()
@@ -222,7 +317,7 @@ class CatsDogsApp(tk.Tk):
             
             # Play tournament win sound
             sound_key = "cat_win_tournament" if self.cat_wins >= self.target_wins else "dog_win_tournament"
-            if sound_key in self.sounds and self.sounds[sound_key]:
+            if sound_key in self.sounds and self.sounds[sound_key] and self.sound_enabled.get():
                 random.choice(self.sounds[sound_key]).play()
                 
             self.status_label.config(text=f"{champion} won the tournament!", fg="red", font=("Arial", 12, "bold"))
@@ -251,6 +346,8 @@ class CatsDogsApp(tk.Tk):
             self.next_round_btn.config(text="New Tournament", state=tk.NORMAL, bg="#2196F3")
         else:
             self.next_round_btn.config(text="Next Round", state=tk.NORMAL, bg="#4CAF50")
+            
+        self.interrupt_btn.config(text="Interrupt AI", state=tk.DISABLED, bg="#f44336")
 
     def next_round(self):
         self.ai_thinking = False
@@ -259,14 +356,28 @@ class CatsDogsApp(tk.Tk):
             self.cat_wins = 0
             self.dog_wins = 0
             self.update_score()
+            self.starting_team = 1 # Default back to cats
+            self.team_rbtn_cat.config(state=tk.NORMAL)
+            self.team_rbtn_dog.config(state=tk.NORMAL)
+            self.size_rbtn_12x3.config(state=tk.NORMAL)
+            self.size_rbtn_12x4.config(state=tk.NORMAL)
             
         self.game.reset()
-        for r in range(15):
-            for c in range(3):
+        for r in range(self.rows):
+            for c in range(self.cols):
                 self.buttons[r][c].config(image="", text=" ", bg="white")
                 
         self.status_label.config(text="Ready", fg="green")
         self.next_round_btn.config(text="Next Round", state=tk.DISABLED, bg="#cccccc")
+        self.interrupt_btn.config(text="Interrupt AI", state=tk.DISABLED, bg="#f44336")
+        
+        if self.starting_team != self.human_team.get():
+            self.team_rbtn_cat.config(state=tk.DISABLED)
+            self.team_rbtn_dog.config(state=tk.DISABLED)
+            self.size_rbtn_12x3.config(state=tk.DISABLED)
+            self.size_rbtn_12x4.config(state=tk.DISABLED)
+            self.ai_thinking = True
+            self.after(500, self.trigger_ai_move)
 
     def update_score(self):
         self.score_label.config(text=f"Cats: {self.cat_wins} | Dogs: {self.dog_wins}")

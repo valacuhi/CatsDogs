@@ -14,7 +14,7 @@ except ImportError:
 class CatsDogsApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Feline vs. Canine 15x3")
+        self.title("Cats vs Dogs TicTacToe")
         self.geometry("600x950")
         
         # Make the main window look nicer
@@ -229,7 +229,7 @@ class CatsDogsApp(tk.Tk):
         rules_win.transient(self)
         rules_win.grab_set()
 
-        title_lbl = tk.Label(rules_win, text="Feline vs. Canine - Manual", font=("Arial", 16, "bold"), bg="#f4f4f4")
+        title_lbl = tk.Label(rules_win, text="Cats vs Dogs TicTacToe - Manual", font=("Arial", 16, "bold"), bg="#f4f4f4")
         title_lbl.pack(pady=10)
 
         # Scrollable text area
@@ -244,7 +244,7 @@ class CatsDogsApp(tk.Tk):
         rules_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=rules_text.yview)
 
-        msg = """Welcome to Feline vs. Canine!
+        msg = """Welcome to Cats vs Dogs TicTacToe!
 
 1. THE BASIC RULES
 • Setup: Choose between a 15x3 or 12x4 board.

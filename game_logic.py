@@ -166,9 +166,9 @@ class GameState:
                     break
             return min_eval
 
-    def get_best_move(self, ai_team, depth=4):
+    def get_best_move(self, ai_team, depth=4, return_score=False):
         """
-        Returns the best move (r, c) for the AI using Minimax with Alpha-Beta pruning.
+        Returns the best move (r, c) for the AI using Minimax with Alpha-Beta pruning, or optionally ((r, c), score).
         """
         best_eval = -math.inf
         best_move = None
@@ -176,7 +176,7 @@ class GameState:
         
         # If no moves or game over, return None
         if not moves or self.check_win()[0] != 0:
-            return None
+            return (None, 0) if return_score else None
             
         # Add a tiny bit of randomness to avoid deterministic loops where all evals are 0
         random.shuffle(moves)
@@ -200,7 +200,14 @@ class GameState:
         if best_move is None and moves:
             best_move = moves[0]
             
-        return best_move
+        return (best_move, best_eval) if return_score else best_move
+
+    def evaluate_move(self, r, c, ai_team, depth=2):
+        human_team = 1 if ai_team == 2 else 2
+        self.board[r][c] = ai_team
+        score = self.minimax(depth - 1, False, -math.inf, math.inf, ai_team, human_team)
+        self.board[r][c] = 0
+        return score
 
     def get_best_move_mcts(self, ai_team, simulations=1000):
         moves = self.get_available_moves()

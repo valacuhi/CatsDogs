@@ -283,7 +283,7 @@ class CatsDogsApp(tk.Tk):
             # Use after to allow UI strictly synchronous process to breathe momentarily
             self.after(50, lambda: self.apply_ai_move(best_move[0] if best_move else None, best_move[1] if best_move else None, current_counter))
         elif "Monte Carlo" in ai_choice:
-            self.status_label.config(text=f"MCTS simulating {self.mcts_sim_var.get()} games...", fg="blue")
+            self.status_label.config(text=f"MCTS simulating\n {self.mcts_sim_var.get()} games...", fg="blue")
             self.update_idletasks()
             
             ai_team = 3 - self.human_team.get()
@@ -305,9 +305,28 @@ class CatsDogsApp(tk.Tk):
             moves = self.game.get_available_moves()
             temp = self.temp_slider.get()
             
-            # Callback ensures apply_ai_move runs back on the main Tkinter thread via `after(0, ...)`
+            # Centaur Upgrade: Intercept LLM blunders using Minimax
             def callback(r, c):
-                self.after(0, lambda: self.apply_ai_move(r, c, current_counter))
+                ai_team = 3 - self.human_team.get()
+                
+                # Check for absolute must-play moves (forced win/block)
+                best_mm_move, best_mm_score = self.game.get_best_move(ai_team, depth=2, return_score=True)
+                
+                if best_mm_score >= 50 and (r, c) != best_mm_move:
+                    print(f"CENTAUR VETO: LLM missed a forced win at {best_mm_move}. Overriding.")
+                    final_move = best_mm_move
+                elif r is not None and c is not None:
+                    llm_score = self.game.evaluate_move(r, c, ai_team, depth=2)
+                    if llm_score <= -50:
+                        print(f"CENTAUR VETO: LLM proposed a blunder at ({r}, {c}). Overriding with safe move {best_mm_move}.")
+                        final_move = best_mm_move
+                    else:
+                        print(f"CENTAUR APPROVAL: LLM move ({r}, {c}) is safe (Score: {llm_score}).")
+                        final_move = (r, c)
+                else:
+                    final_move = best_mm_move
+                    
+                self.after(0, lambda: self.apply_ai_move(final_move[0] if final_move else None, final_move[1] if final_move else None, current_counter))
                 
             get_llm_move(self.game.board, moves, provider, model, temp, self.game.last_move, callback)
 

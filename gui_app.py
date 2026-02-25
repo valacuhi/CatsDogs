@@ -279,7 +279,7 @@ class CatsDogsApp(tk.Tk):
             def callback(r, c):
                 self.after(0, lambda: self.apply_ai_move(r, c, current_counter))
                 
-            get_llm_move(self.game.board, moves, provider, model, temp, callback)
+            get_llm_move(self.game.board, moves, provider, model, temp, self.game.last_move, callback)
 
     def apply_ai_move(self, r, c, counter_at_time_of_request):
         if counter_at_time_of_request != self.ai_move_counter:

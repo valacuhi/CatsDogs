@@ -101,15 +101,15 @@ class CatsDogsApp(tk.Tk):
         
         tk.Frame(sidebar, height=2, bg="#cccccc").pack(fill=tk.X, pady=10, padx=10)
         
-        tk.Label(sidebar, text="Opponent AI", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=5)
-        self.ai_var = tk.StringVar(value="Local Minimax")
+        tk.Label(sidebar, text="Opponent", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=5)
+        self.ai_var = tk.StringVar(value="Minimax")
         
         # Provide mapping for models
         self.ai_models = {
-            "Local Minimax": "minimax",
-            "OpenRouter (Mistral)": "mistralai/mistral-7b-instruct:free",
-            "OpenRouter (Phi-3)": "microsoft/phi-3-mini-4k-instruct:free",
-            "Google Gemini": "gemini-2.0-flash"
+            "Minimax": "minimax",
+            "Mistral 7B": "mistralai/mistral-7b-instruct:free",
+            "Phi-3 Mini": "microsoft/phi-3-mini-4k-instruct:free",
+            "Gemini 2.0 Flash": "gemini-2.0-flash"
         }
         
         for choice in self.ai_models.keys():
@@ -248,8 +248,8 @@ class CatsDogsApp(tk.Tk):
             # Use after to allow UI strictly synchronous process to breathe momentarily
             self.after(50, lambda: self.apply_ai_move(best_move[0] if best_move else None, best_move[1] if best_move else None, current_counter))
         else:
-            self.status_label.config(text="LLM AI thinking...", fg="purple")
-            provider = "OpenRouter" if "OpenRouter" in ai_choice else "Google Gemini"
+            self.status_label.config(text="LLM thinking...", fg="purple")
+            provider = "Google Gemini" if "Gemini" in ai_choice else "OpenRouter"
             model = self.ai_models[ai_choice]
             
             moves = self.game.get_available_moves()

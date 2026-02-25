@@ -124,8 +124,10 @@ class CatsDogsApp(tk.Tk):
             "Gemini 2.0 Flash": "gemini-2.0-flash"
         }
         
-        for choice in self.ai_models.keys():
-            tk.Radiobutton(sidebar, text=choice, variable=self.ai_var, value=choice, bg="#ffffff", font=("Arial", 10)).pack(anchor="w", padx=10)
+        ai_options = list(self.ai_models.keys())
+        self.ai_dropdown = tk.OptionMenu(sidebar, self.ai_var, *ai_options)
+        self.ai_dropdown.config(bg="#ffffff", width=16, font=("Arial", 10))
+        self.ai_dropdown.pack(pady=5, padx=10)
             
         tk.Label(sidebar, text="Minimax Depth", font=("Arial", 10, "bold"), bg="#ffffff").pack(pady=(10, 0))
         self.minimax_depth_var = tk.IntVar(value=4)

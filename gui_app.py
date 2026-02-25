@@ -304,27 +304,50 @@ class CatsDogsApp(tk.Tk):
             ai_team = 3 - self.human_team.get()
             evaluated_moves = self.game.get_evaluated_moves(ai_team, depth=2)
             
+            if not evaluated_moves:
+                return
+                
+            best_score = evaluated_moves[0][1]
+            
+            # 1. Auto-Pilot: If there is a guaranteed win, take it immediately!
+            if best_score >= 50:
+                print(f"CENTAUR AUTO-PILOT: Found guaranteed win at {evaluated_moves[0][0]}, skipping LLM!")
+                self.after(50, lambda: self.apply_ai_move(evaluated_moves[0][0][0], evaluated_moves[0][0][1], current_counter))
+                return
+                
+            # 2. Filter out blunders (score <= -50)
+            safe_moves = [m for m, s in evaluated_moves if s > -50]
+            
+            # If all moves lose anyway, just give the LLM all moves
+            if not safe_moves:
+                safe_moves = [m for m, s in evaluated_moves]
+                
+            # 3. Auto-Pilot: If there is exactly ONE safe move (forced block), take it immediately!
+            if len(safe_moves) == 1:
+                print(f"CENTAUR AUTO-PILOT: Found forced block at {safe_moves[0]}, skipping LLM to prevent a blunder!")
+                self.after(50, lambda: self.apply_ai_move(safe_moves[0][0], safe_moves[0][1], current_counter))
+                return
+                
+            # 4. If multiple safe/strategic moves exist, annotate them for the LLM
             annotated_moves = []
-            for (r, c), score in evaluated_moves[:7]: # Provide top 7 options max
-                if score >= 50:
-                    tag = " [GUARANTEED WIN - YOU MUST CHOOSE THIS]"
-                elif score <= -50:
-                    tag = " [BLUNDER - DO NOT CHOOSE THIS. IT WILL RESULT IN AN IMMEDIATE LOSS.]"
-                elif score > 0:
+            for (r, c), score in evaluated_moves:
+                if (r, c) not in safe_moves:
+                    continue # Do not present blunders to the LLM
+                
+                if score > 0:
                     tag = " [Advantageous]"
                 else:
                     tag = " [Safe]"
                 annotated_moves.append(f"({r}, {c}){tag}")
                 
-            moves_str = "\n".join(annotated_moves)
+            moves_str = "\n".join(annotated_moves[:7]) # Provide top 7 options max
             temp = self.temp_slider.get()
             
-            # Simple callback, LLM is now trusted
+            # Simple callback, LLM is now restricted to only picking from safe_moves
             def callback(r, c):
                 self.after(0, lambda: self.apply_ai_move(r, c, current_counter))
                 
-            raw_moves = self.game.get_available_moves()
-            get_llm_move(self.game.board, moves_str, raw_moves, provider, model, temp, self.game.last_move, callback)
+            get_llm_move(self.game.board, moves_str, safe_moves, provider, model, temp, self.game.last_move, callback)
 
     def apply_ai_move(self, r, c, counter_at_time_of_request):
         if counter_at_time_of_request != self.ai_move_counter:

@@ -49,13 +49,13 @@ Current Board State:
 Strict Legal Move List (Row, Column):
 {available_moves}
 
-Analyze the board. You MUST choose one of the strict legal moves to either:
-1. Block the opponent (C) from winning on their next turn.
-2. Complete your own winning line (D).
-3. Set up a future win.
+Analyze the board carefully step-by-step:
+1. Scan all {rows} rows, {cols} columns, and diagonals for any immediate threats where 'C' (Cat) is one move away from winning. If a threat exists, you MUST block it.
+2. Scan for any lines where you ('D') are one move away from winning. If so, you MUST take it.
+3. If no immediate threats or wins exist, find a move that builds toward a winning line or creates a fork.
 
-Respond ONLY with the coordinates of your chosen move in the exact format: "MOVE: r, c"
-Do not include any other text, reasoning, or markdown around your response.
+You MUST write down your thought process briefly, evaluating rows, columns, and diagonals.
+Finally, your very last line MUST be exactly: "MOVE: r, c" where r and c are the coordinates from the Legal Move List.
 """
         try:
             result_text = ""

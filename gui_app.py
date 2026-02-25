@@ -300,35 +300,29 @@ class CatsDogsApp(tk.Tk):
         else:
             self.status_label.config(text="LLM thinking...", fg="purple")
             provider = "Google Gemini" if "Gemini" in ai_choice else "OpenRouter"
-            model = self.ai_models[ai_choice]
+            ai_team = 3 - self.human_team.get()
+            evaluated_moves = self.game.get_evaluated_moves(ai_team, depth=2)
             
-            moves = self.game.get_available_moves()
+            annotated_moves = []
+            for (r, c), score in evaluated_moves[:7]: # Provide top 7 options max
+                if score >= 50:
+                    tag = " [GUARANTEED WIN - YOU MUST CHOOSE THIS]"
+                elif score <= -50:
+                    tag = " [BLUNDER - DO NOT CHOOSE THIS. IT WILL RESULT IN AN IMMEDIATE LOSS.]"
+                elif score > 0:
+                    tag = " [Advantageous]"
+                else:
+                    tag = " [Safe]"
+                annotated_moves.append(f"({r}, {c}){tag}")
+                
+            moves_str = "\n".join(annotated_moves)
             temp = self.temp_slider.get()
             
-            # Centaur Upgrade: Intercept LLM blunders using Minimax
+            # Simple callback, LLM is now trusted
             def callback(r, c):
-                ai_team = 3 - self.human_team.get()
+                self.after(0, lambda: self.apply_ai_move(r, c, current_counter))
                 
-                # Check for absolute must-play moves (forced win/block)
-                best_mm_move, best_mm_score = self.game.get_best_move(ai_team, depth=2, return_score=True)
-                
-                if best_mm_score >= 50 and (r, c) != best_mm_move:
-                    print(f"CENTAUR VETO: LLM missed a forced win at {best_mm_move}. Overriding.")
-                    final_move = best_mm_move
-                elif r is not None and c is not None:
-                    llm_score = self.game.evaluate_move(r, c, ai_team, depth=2)
-                    if llm_score <= -50:
-                        print(f"CENTAUR VETO: LLM proposed a blunder at ({r}, {c}). Overriding with safe move {best_mm_move}.")
-                        final_move = best_mm_move
-                    else:
-                        print(f"CENTAUR APPROVAL: LLM move ({r}, {c}) is safe (Score: {llm_score}).")
-                        final_move = (r, c)
-                else:
-                    final_move = best_mm_move
-                    
-                self.after(0, lambda: self.apply_ai_move(final_move[0] if final_move else None, final_move[1] if final_move else None, current_counter))
-                
-            get_llm_move(self.game.board, moves, provider, model, temp, self.game.last_move, callback)
+            get_llm_move(self.game.board, moves_str, provider, model, temp, self.game.last_move, callback)
 
     def apply_ai_move(self, r, c, counter_at_time_of_request):
         if counter_at_time_of_request != self.ai_move_counter:

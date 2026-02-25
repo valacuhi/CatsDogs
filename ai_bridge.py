@@ -48,16 +48,17 @@ Current Board State:
 
 {"[URGENT CONTEXT] The human opponent's LAST MOVE was played at Row " + str(last_move[0]) + ", Column " + str(last_move[1]) + ". Pay special attention to this area as they are likely building a threat!" if last_move else ""}
 
-Strict Legal Move List (Row, Column):
+Top Recommended Legal Moves (Row, Column) and their Mathematical Evaluations:
 {available_moves}
 
 Analyze the board carefully step-by-step:
-1. Scan all {rows} rows, {cols} columns, and diagonals for any immediate threats where 'C' (Cat) is one move away from winning. If a threat exists, you MUST block it.
-2. Scan for any lines where you ('D') are one move away from winning. If so, you MUST take it.
-3. If no immediate threats or wins exist, find a move that builds toward a winning line or creates a fork.
+1. Review the Recommended Legal Moves list provided above.
+2. If any move is tagged [GUARANTEED WIN - YOU MUST CHOOSE THIS], you MUST choose it to end the game.
+3. If no immediate win exists, choose one of the top [Safe] or [Advantageous] moves that best builds a long-term strategy or blocks the opponent's "LAST MOVE" threat.
+4. Do not choose moves tagged [BLUNDER] unless there are absolutely no other options.
 
 You MUST write down your thought process briefly, evaluating rows, columns, and diagonals.
-Finally, your very last line MUST be exactly: "MOVE: r, c" where r and c are the coordinates from the Legal Move List.
+Finally, your very last line MUST be exactly: "MOVE: r, c" where r and c are the coordinates of your chosen move.
 """
         try:
             result_text = ""

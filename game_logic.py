@@ -202,12 +202,24 @@ class GameState:
             
         return (best_move, best_eval) if return_score else best_move
 
-    def evaluate_move(self, r, c, ai_team, depth=2):
+    def get_evaluated_moves(self, ai_team, depth=2):
+        moves = self.get_available_moves()
+        if not moves:
+            return []
+            
         human_team = 1 if ai_team == 2 else 2
-        self.board[r][c] = ai_team
-        score = self.minimax(depth - 1, False, -math.inf, math.inf, ai_team, human_team)
-        self.board[r][c] = 0
-        return score
+        evaluated = []
+        for r, c in moves:
+            self.board[r][c] = ai_team
+            score = self.minimax(depth - 1, False, -math.inf, math.inf, ai_team, human_team)
+            self.board[r][c] = 0
+            if score == 0:
+                # Add a tiny bit of randomness to equal scores
+                score += random.uniform(-0.1, 0.1)
+            evaluated.append(((r, c), score))
+            
+        evaluated.sort(key=lambda x: x[1], reverse=True)
+        return evaluated
 
     def get_best_move_mcts(self, ai_team, simulations=1000):
         moves = self.get_available_moves()

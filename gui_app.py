@@ -29,11 +29,11 @@ class CatsDogsApp(tk.Tk):
                 self.sounds[s] = [pygame.mixer.Sound(f) for f in files]
         
         # dynamic sizes
-        self.board_size_var = tk.StringVar(value="12x3")
-        self.rows = 12
+        self.board_size_var = tk.StringVar(value="15x3")
+        self.rows = 15
         self.cols = 3
         
-        self.game = GameState(rows=12, cols=3, win_v=4, win_h=3, win_d=3)
+        self.game = GameState(rows=15, cols=3, win_v=4, win_h=3, win_d=3)
         self.cat_wins = 0
         self.dog_wins = 0
         self.target_wins = 5
@@ -57,7 +57,7 @@ class CatsDogsApp(tk.Tk):
         self.team_rbtn_cat: tk.Radiobutton
         self.team_rbtn_dog: tk.Radiobutton
         self.sound_chk: tk.Checkbutton
-        self.size_rbtn_12x3: tk.Radiobutton
+        self.size_rbtn_15x3: tk.Radiobutton
         self.size_rbtn_12x4: tk.Radiobutton
         self.interrupt_btn: tk.Button
         self.board_container: tk.Frame
@@ -88,8 +88,8 @@ class CatsDogsApp(tk.Tk):
         tk.Frame(sidebar, height=2, bg="#cccccc").pack(fill=tk.X, pady=10, padx=10)
         
         tk.Label(sidebar, text="Board Size", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=5)
-        self.size_rbtn_12x3 = tk.Radiobutton(sidebar, text="12x3", variable=self.board_size_var, value="12x3", bg="#ffffff", font=("Arial", 10), command=self.on_size_change)
-        self.size_rbtn_12x3.pack(anchor="w", padx=10)
+        self.size_rbtn_15x3 = tk.Radiobutton(sidebar, text="15x3", variable=self.board_size_var, value="15x3", bg="#ffffff", font=("Arial", 10), command=self.on_size_change)
+        self.size_rbtn_15x3.pack(anchor="w", padx=10)
         self.size_rbtn_12x4 = tk.Radiobutton(sidebar, text="12x4", variable=self.board_size_var, value="12x4", bg="#ffffff", font=("Arial", 10), command=self.on_size_change)
         self.size_rbtn_12x4.pack(anchor="w", padx=10)
         
@@ -169,10 +169,10 @@ class CatsDogsApp(tk.Tk):
 
     def on_size_change(self):
         size = self.board_size_var.get()
-        if size == "12x3":
-            self.rows = 12
+        if size == "15x3":
+            self.rows = 15
             self.cols = 3
-            self.game = GameState(rows=12, cols=3, win_v=4, win_h=3, win_d=3)
+            self.game = GameState(rows=15, cols=3, win_v=4, win_h=3, win_d=3)
         else:
             self.rows = 12
             self.cols = 4
@@ -182,9 +182,9 @@ class CatsDogsApp(tk.Tk):
 
     def show_rules(self):
         msg = ("Welcome to Feline vs. Canine!\n\n"
-               "The Setup: Choose 12x3 or 12x4 board.\n"
+               "The Setup: Choose 15x3 or 12x4 board.\n"
                "Cats (😇) vs Dogs (😈)\n\n"
-               "Winning Conditions (12x3):\n"
+               "Winning Conditions (15x3):\n"
                "1. Vertical: 4-in-a-row\n"
                "2. Horizontal: 3-in-a-row\n"
                "3. Diagonal: 3-in-a-row diagonally\n\n"
@@ -204,7 +204,7 @@ class CatsDogsApp(tk.Tk):
             
         self.team_rbtn_cat.config(state=tk.DISABLED)
         self.team_rbtn_dog.config(state=tk.DISABLED)
-        self.size_rbtn_12x3.config(state=tk.DISABLED)
+        self.size_rbtn_15x3.config(state=tk.DISABLED)
         self.size_rbtn_12x4.config(state=tk.DISABLED)
             
         if self.game.make_move(r, c, self.human_team.get()):
@@ -359,7 +359,7 @@ class CatsDogsApp(tk.Tk):
             self.starting_team = 1 # Default back to cats
             self.team_rbtn_cat.config(state=tk.NORMAL)
             self.team_rbtn_dog.config(state=tk.NORMAL)
-            self.size_rbtn_12x3.config(state=tk.NORMAL)
+            self.size_rbtn_15x3.config(state=tk.NORMAL)
             self.size_rbtn_12x4.config(state=tk.NORMAL)
             
         self.game.reset()
@@ -374,7 +374,7 @@ class CatsDogsApp(tk.Tk):
         if self.starting_team != self.human_team.get():
             self.team_rbtn_cat.config(state=tk.DISABLED)
             self.team_rbtn_dog.config(state=tk.DISABLED)
-            self.size_rbtn_12x3.config(state=tk.DISABLED)
+            self.size_rbtn_15x3.config(state=tk.DISABLED)
             self.size_rbtn_12x4.config(state=tk.DISABLED)
             self.ai_thinking = True
             self.after(500, self.trigger_ai_move)

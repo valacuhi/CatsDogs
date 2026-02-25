@@ -52,6 +52,8 @@ class CatsDogsApp(tk.Tk):
         self.ai_var: tk.StringVar
         self.ai_models: dict
         self.temp_slider: tk.Scale
+        self.minimax_depth_var: tk.IntVar
+        self.depth_menu: tk.OptionMenu
         self.status_label: tk.Label
         self.next_round_btn: tk.Button
         self.team_rbtn_cat: tk.Radiobutton
@@ -103,19 +105,30 @@ class CatsDogsApp(tk.Tk):
         
         tk.Label(sidebar, text="Opponent", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=5)
         self.ai_var = tk.StringVar(value="Minimax")
+        self.ai_var.trace_add("write", self.on_ai_change)
         
         # Provide mapping for models
         self.ai_models = {
             "Minimax": "minimax",
             "Mistral 7B": "mistralai/mistral-7b-instruct:free",
             "Phi-3 Mini": "microsoft/phi-3-mini-4k-instruct:free",
+            "Llama 3 8B": "meta-llama/llama-3-8b-instruct:free",
+            "Claude 3.5 Sonnet": "anthropic/claude-3.5-sonnet",
+            "GPT-4o Mini": "openai/gpt-4o-mini",
+            "Gemini 1.5 Pro": "gemini-1.5-pro",
             "Gemini 2.0 Flash": "gemini-2.0-flash"
         }
         
         for choice in self.ai_models.keys():
             tk.Radiobutton(sidebar, text=choice, variable=self.ai_var, value=choice, bg="#ffffff", font=("Arial", 10)).pack(anchor="w", padx=10)
             
-        tk.Label(sidebar, text="LLM Temperature (0.0-1.0)", bg="#ffffff", font=("Arial", 10, "bold")).pack(pady=(20,0))
+        tk.Label(sidebar, text="Minimax Depth", font=("Arial", 10, "bold"), bg="#ffffff").pack(pady=(10, 0))
+        self.minimax_depth_var = tk.IntVar(value=4)
+        self.depth_menu = tk.OptionMenu(sidebar, self.minimax_depth_var, 3, 4, 5, 6)
+        self.depth_menu.config(bg="#ffffff", width=10)
+        self.depth_menu.pack(pady=5)
+            
+        tk.Label(sidebar, text="LLM Temperature (0.0-1.0)", bg="#ffffff", font=("Arial", 10, "bold")).pack(pady=(10,0))
         self.temp_slider = tk.Scale(sidebar, from_=0.0, to=1.0, resolution=0.1, orient=tk.HORIZONTAL, bg="#ffffff", highlightthickness=0)
         self.temp_slider.set(0.1)
         self.temp_slider.pack(fill=tk.X, padx=10)
@@ -142,6 +155,13 @@ class CatsDogsApp(tk.Tk):
         self.board_container = tk.Frame(self, bg="#e8e8e8")
         self.board_container.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=20, pady=10)
         self.board_frame = None
+        
+    def on_ai_change(self, *args):
+        if hasattr(self, 'depth_menu'):
+            if self.ai_var.get() == "Minimax":
+                self.depth_menu.config(state=tk.NORMAL)
+            else:
+                self.depth_menu.config(state=tk.DISABLED)
         
     def recreate_board_ui(self):
         if self.board_frame is not None:
@@ -243,8 +263,8 @@ class CatsDogsApp(tk.Tk):
             self.update_idletasks()
             
             ai_team = 3 - self.human_team.get()
-            # depth=4 is usually instantaneous for this size, depth=5 or 6 could be used depending on performance
-            best_move = self.game.get_best_move(ai_team, depth=4)
+            depth_val = self.minimax_depth_var.get()
+            best_move = self.game.get_best_move(ai_team, depth=depth_val)
             # Use after to allow UI strictly synchronous process to breathe momentarily
             self.after(50, lambda: self.apply_ai_move(best_move[0] if best_move else None, best_move[1] if best_move else None, current_counter))
         else:

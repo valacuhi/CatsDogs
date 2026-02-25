@@ -300,6 +300,7 @@ class CatsDogsApp(tk.Tk):
         else:
             self.status_label.config(text="LLM thinking...", fg="purple")
             provider = "Google Gemini" if "Gemini" in ai_choice else "OpenRouter"
+            model = self.ai_models[ai_choice]
             ai_team = 3 - self.human_team.get()
             evaluated_moves = self.game.get_evaluated_moves(ai_team, depth=2)
             

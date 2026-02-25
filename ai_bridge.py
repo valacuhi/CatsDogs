@@ -25,7 +25,7 @@ def format_board(board):
         rows_str.append(f"Row {r:02d}: " + "  ".join(row))
     return "\n".join(rows_str)
 
-def get_llm_move(board_state, available_moves, ai_provider, model_name, temperature, last_move, callback):
+def get_llm_move(board_state, annotated_moves_str, raw_moves_list, ai_provider, model_name, temperature, last_move, callback):
     """
     Runs an API call in a background thread and calls callback(r, c) when done.
     If the AI fails to produce a valid move, it falls back to a random legal move to prevent game breakage.
@@ -49,7 +49,7 @@ Current Board State:
 {"[URGENT CONTEXT] The human opponent's LAST MOVE was played at Row " + str(last_move[0]) + ", Column " + str(last_move[1]) + ". Pay special attention to this area as they are likely building a threat!" if last_move else ""}
 
 Top Recommended Legal Moves (Row, Column) and their Mathematical Evaluations:
-{available_moves}
+{annotated_moves_str}
 
 Analyze the board carefully step-by-step:
 1. Review the Recommended Legal Moves list provided above.
@@ -103,22 +103,22 @@ Finally, your very last line MUST be exactly: "MOVE: r, c" where r and c are the
             match = re.search(r"MOVE:\s*(\d+),\s*(\d+)", result_text, re.IGNORECASE)
             if match:
                 r, c = int(match.group(1)), int(match.group(2))
-                if (r, c) in available_moves:
+                if (r, c) in raw_moves_list:
                     callback(r, c)
                     return
             
             print(f"AI returned invalid format or illegal move: {result_text}")
             # Fallback if AI hallucinates formatting or makes illegal move
-            if available_moves:
-                fallback_move = random.choice(available_moves)
+            if raw_moves_list:
+                fallback_move = random.choice(raw_moves_list)
                 callback(fallback_move[0], fallback_move[1])
             else:
                 callback(None, None)
 
         except Exception as e:
             print(f"AI Bridge Thread Error: {e}")
-            if available_moves:
-                fallback_move = random.choice(available_moves)
+            if raw_moves_list:
+                fallback_move = random.choice(raw_moves_list)
                 callback(fallback_move[0], fallback_move[1])
             else:
                 callback(None, None)

@@ -54,6 +54,8 @@ class CatsDogsApp(tk.Tk):
         self.temp_slider: tk.Scale
         self.minimax_depth_var: tk.IntVar
         self.depth_menu: tk.OptionMenu
+        self.mcts_sim_var: tk.IntVar
+        self.sim_menu: tk.OptionMenu
         self.status_label: tk.Label
         self.next_round_btn: tk.Button
         self.team_rbtn_cat: tk.Radiobutton
@@ -110,6 +112,7 @@ class CatsDogsApp(tk.Tk):
         # Provide mapping for models
         self.ai_models = {
             "Minimax": "minimax",
+            "Monte Carlo": "mcts",
             "Mistral 7B": "mistralai/mistral-7b-instruct:free",
             "Phi-3 Mini": "microsoft/phi-3-mini-4k-instruct:free",
             "Llama 3 8B": "meta-llama/llama-3-8b-instruct:free",
@@ -127,6 +130,12 @@ class CatsDogsApp(tk.Tk):
         self.depth_menu = tk.OptionMenu(sidebar, self.minimax_depth_var, 3, 4, 5, 6)
         self.depth_menu.config(bg="#ffffff", width=10)
         self.depth_menu.pack(pady=5)
+        
+        tk.Label(sidebar, text="MCTS Simulations", font=("Arial", 10, "bold"), bg="#ffffff").pack(pady=(10, 0))
+        self.mcts_sim_var = tk.IntVar(value=1000)
+        self.sim_menu = tk.OptionMenu(sidebar, self.mcts_sim_var, 500, 1000, 2500, 5000)
+        self.sim_menu.config(bg="#ffffff", width=10, state=tk.DISABLED)
+        self.sim_menu.pack(pady=5)
             
         tk.Label(sidebar, text="LLM Temperature (0.0-1.0)", bg="#ffffff", font=("Arial", 10, "bold")).pack(pady=(10,0))
         self.temp_slider = tk.Scale(sidebar, from_=0.0, to=1.0, resolution=0.1, orient=tk.HORIZONTAL, bg="#ffffff", highlightthickness=0)
@@ -157,11 +166,17 @@ class CatsDogsApp(tk.Tk):
         self.board_frame = None
         
     def on_ai_change(self, *args):
-        if hasattr(self, 'depth_menu'):
-            if self.ai_var.get() == "Minimax":
+        if hasattr(self, 'depth_menu') and hasattr(self, 'sim_menu'):
+            choice = self.ai_var.get()
+            if choice == "Minimax":
                 self.depth_menu.config(state=tk.NORMAL)
+                self.sim_menu.config(state=tk.DISABLED)
+            elif choice == "Monte Carlo":
+                self.depth_menu.config(state=tk.DISABLED)
+                self.sim_menu.config(state=tk.NORMAL)
             else:
                 self.depth_menu.config(state=tk.DISABLED)
+                self.sim_menu.config(state=tk.DISABLED)
         
     def recreate_board_ui(self):
         if self.board_frame is not None:
@@ -267,6 +282,21 @@ class CatsDogsApp(tk.Tk):
             best_move = self.game.get_best_move(ai_team, depth=depth_val)
             # Use after to allow UI strictly synchronous process to breathe momentarily
             self.after(50, lambda: self.apply_ai_move(best_move[0] if best_move else None, best_move[1] if best_move else None, current_counter))
+        elif "Monte Carlo" in ai_choice:
+            self.status_label.config(text=f"MCTS simulating {self.mcts_sim_var.get()} games...", fg="blue")
+            self.update_idletasks()
+            
+            ai_team = 3 - self.human_team.get()
+            simulations = self.mcts_sim_var.get()
+            
+            # Using a thread so UI does not completely lock up during thousands of simulations
+            def mcts_worker():
+                best_move = self.game.get_best_move_mcts(ai_team, simulations=simulations)
+                self.after(0, lambda: self.apply_ai_move(best_move[0] if best_move else None, best_move[1] if best_move else None, current_counter))
+            
+            import threading
+            threading.Thread(target=mcts_worker, daemon=True).start()
+
         else:
             self.status_label.config(text="LLM thinking...", fg="purple")
             provider = "Google Gemini" if "Gemini" in ai_choice else "OpenRouter"

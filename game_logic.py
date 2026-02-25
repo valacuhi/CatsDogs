@@ -201,3 +201,58 @@ class GameState:
             best_move = moves[0]
             
         return best_move
+
+    def get_best_move_mcts(self, ai_team, simulations=1000):
+        moves = self.get_available_moves()
+        if not moves or self.check_win()[0] != 0:
+            return None
+            
+        human_team = 1 if ai_team == 2 else 2
+        best_move = None
+        best_score = -float('inf')
+        
+        if not moves:
+            return None
+            
+        sims_per_move = max(10, simulations // len(moves))
+        original_board = [row[:] for row in self.board]
+        
+        for r, c in moves:
+            score = 0
+            for _ in range(sims_per_move):
+                # Restore board for simulation
+                for ir in range(self.rows):
+                    for ic in range(self.cols):
+                        self.board[ir][ic] = original_board[ir][ic]
+                
+                self.board[r][c] = ai_team
+                current_player = human_team
+                
+                while True:
+                    winner, _ = self.check_win()
+                    if winner != 0:
+                        if winner == ai_team:
+                            score += 1
+                        elif winner == human_team:
+                            score -= 2 # Penalize losses heavier
+                        break
+                        
+                    temp_moves = self.get_available_moves()
+                    if not temp_moves:
+                        break # draw
+                        
+                    nr, nc = random.choice(temp_moves)
+                    self.board[nr][nc] = current_player
+                    current_player = 1 if current_player == 2 else 2
+            
+            if score > best_score:
+                best_score = score
+                best_move = (r, c)
+                
+        # Restore original board
+        self.board = [row[:] for row in original_board]
+        
+        if best_move is None and moves:
+            best_move = random.choice(moves)
+            
+        return best_move

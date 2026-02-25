@@ -114,11 +114,13 @@ class CatsDogsApp(tk.Tk):
             "Minimax": "minimax",
             "Monte Carlo": "mcts",
             "Mistral 7B": "mistralai/mistral-7b-instruct:free",
-            "Phi-3 Mini": "microsoft/phi-3-mini-4k-instruct:free",
+            "Gemma 3 27B": "google/gemma-3-27b-it:free",
+            "Qwen 3 Coder": "qwen/qwen3-coder:free",
             "Llama 3 8B": "meta-llama/llama-3-8b-instruct:free",
+            "Llama 3.3 70B": "meta-llama/llama-3.3-70b-instruct:free",
             "Claude 3.5 Sonnet": "anthropic/claude-3.5-sonnet",
             "GPT-4o Mini": "openai/gpt-4o-mini",
-            "Gemini 1.5 Pro": "gemini-1.5-pro",
+            "Gemini 2.5 Pro": "gemini-2.5-pro",
             "Gemini 2.0 Flash": "gemini-2.0-flash"
         }
         

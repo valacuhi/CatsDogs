@@ -11,14 +11,17 @@ class GameState:
         # 0 = Empty, 1 = Cat (Player 1), 2 = Dog (Player 2 / AI)
         self.board = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
         self.current_turn = 1 # 1 always starts (Cat)
+        self.last_move = None
 
     def reset(self):
         self.board = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
         self.current_turn = 1
+        self.last_move = None
 
     def make_move(self, r, c, player):
         if self.board[r][c] == 0:
             self.board[r][c] = player
+            self.last_move = (r, c)
             return True
         return False
 

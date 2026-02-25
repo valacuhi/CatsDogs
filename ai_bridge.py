@@ -25,7 +25,7 @@ def format_board(board):
         rows_str.append(f"Row {r:02d}: " + "  ".join(row))
     return "\n".join(rows_str)
 
-def get_llm_move(board_state, available_moves, ai_provider, model_name, temperature, callback):
+def get_llm_move(board_state, available_moves, ai_provider, model_name, temperature, last_move, callback):
     """
     Runs an API call in a background thread and calls callback(r, c) when done.
     If the AI fails to produce a valid move, it falls back to a random legal move to prevent game breakage.
@@ -45,6 +45,8 @@ Winning Conditions:
 The board has {rows} rows (0-{rows-1}) and {cols} columns (0-{cols-1}).
 Current Board State:
 {format_board(board_state)}
+
+{"[URGENT CONTEXT] The human opponent's LAST MOVE was played at Row " + str(last_move[0]) + ", Column " + str(last_move[1]) + ". Pay special attention to this area as they are likely building a threat!" if last_move else ""}
 
 Strict Legal Move List (Row, Column):
 {available_moves}

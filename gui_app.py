@@ -220,19 +220,68 @@ class CatsDogsApp(tk.Tk):
         self.recreate_board_ui()
 
     def show_rules(self):
-        msg = ("Welcome to Feline vs. Canine!\n\n"
-               "The Setup: Choose 15x3 or 12x4 board.\n"
-               "Cats (😇) vs Dogs (😈)\n\n"
-               "Winning Conditions (15x3):\n"
-               "1. Vertical: 4-in-a-row\n"
-               "2. Horizontal: 3-in-a-row\n"
-               "3. Diagonal: 3-in-a-row diagonally\n\n"
-               "Winning Conditions (12x4):\n"
-               "1. Vertical: 5-in-a-row\n"
-               "2. Horizontal: 4-in-a-row\n"
-               "3. Diagonal: 4-in-a-row diagonally\n\n"
-               "Tournament Mode: Keep playing rounds until one faction reaches 5 wins.")
-        messagebox.showinfo("Rules", msg)
+        rules_win = tk.Toplevel(self)
+        rules_win.title("Game Rules & Information")
+        rules_win.geometry("550x600")
+        rules_win.configure(bg="#f4f4f4")
+        
+        # Make the modal dialog window
+        rules_win.transient(self)
+        rules_win.grab_set()
+
+        title_lbl = tk.Label(rules_win, text="Feline vs. Canine - Manual", font=("Arial", 16, "bold"), bg="#f4f4f4")
+        title_lbl.pack(pady=10)
+
+        # Scrollable text area
+        text_frame = tk.Frame(rules_win, bg="#f4f4f4")
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=5)
+        
+        scrollbar = tk.Scrollbar(text_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Using a smaller font size as requested (Arial 10)
+        rules_text = tk.Text(text_frame, wrap=tk.WORD, yscrollcommand=scrollbar.set, font=("Arial", 10), bg="#ffffff", padx=10, pady=10)
+        rules_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=rules_text.yview)
+
+        msg = """Welcome to Feline vs. Canine!
+
+1. THE BASIC RULES
+• Setup: Choose between a 15x3 or 12x4 board.
+• You can choose to play as Cats (😇) or Dogs (😈).
+• Tournament Mode: Keep playing rounds until one faction reaches 5 wins!
+
+2. WINNING CONDITIONS
+On 15x3 Board:
+• Vertical: 4-in-a-row
+• Horizontal: 3-in-a-row
+• Diagonal: 3-in-a-row
+
+On 12x4 Board:
+• Vertical: 5-in-a-row
+• Horizontal: 4-in-a-row
+• Diagonal: 4-in-a-row
+
+3. AI OPPONENTS
+You can play against several different AI engines.
+• Minimax: A flawless mathematical engine. Depth 4 is strong, Depth 6 is nearly unbeatable but slower.
+• Monte Carlo (MCTS): A probabilistic engine that simulates thousands of random games to find the best move.
+• Standard LLMs: Chatbots like Llama 3 8B, Claude 3.5 Sonnet, etc. They evaluate the board mathematically according to standard tic-tac-toe logic.
+
+4. CENTAUR AUTO-PILOT
+To save time waiting for slow AI generations, this game features a 'Centaur' system. If the AI detects an extremely obvious forced win or forced block on the board, it automatically skips the LLM and instantly plays the mathematically perfect move!
+
+5. API KEYS (.env)
+To use the Generative AI models, you MUST configure an environment file:
+• Create a `.env` file in the game directory.
+• To use OpenRouter models (Llama, Gemma, Qwen, Mistral, Claude, GPT), add: OPENROUTER_API_KEY=your_key_here
+• To use Google Gemini models, add: GOOGLE_API_KEY=your_key_here
+"""
+        rules_text.insert(tk.END, msg)
+        rules_text.config(state=tk.DISABLED) # Make read-only
+
+        close_btn = tk.Button(rules_win, text="Close", font=("Arial", 12, "bold"), command=rules_win.destroy, bg="#e0e0e0", width=15)
+        close_btn.pack(pady=15)
 
     def on_click(self, r, c):
         if self.ai_thinking or self.game.check_win()[0] != 0 or self.game.is_draw():

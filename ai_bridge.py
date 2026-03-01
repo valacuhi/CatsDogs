@@ -62,24 +62,19 @@ Finally, your very last line MUST be exactly: "MOVE: r, c" where r and c are the
 """
         try:
             result_text = ""
-            if ai_provider == "OpenRouter":
-                api_key = os.environ.get("OPENROUTER_API_KEY")
-                if not api_key:
-                    raise ValueError("OPENROUTER_API_KEY not found in environment.")
-                    
-                headers = {
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
-                }
+            if ai_provider == "Ollama":
+                # Connect to your local Ryzen AI 9
+                url = "http://localhost:11434/api/chat"
                 data = {
                     "model": model_name,
                     "messages": [{"role": "user", "content": prompt}],
-                    "temperature": float(temperature)
+                    "stream": False,
+                    "options": {"temperature": float(temperature)}
                 }
-                response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+                response = requests.post(url, json=data)
                 response.raise_for_status()
-                result_text = response.json()["choices"][0]["message"]["content"]
-
+                result_text = response.json()["message"]["content"]
+                
             elif ai_provider == "Google Gemini":
                 api_key = os.environ.get("GOOGLE_API_KEY")
                 if not api_key:

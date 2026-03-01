@@ -25,7 +25,7 @@ def format_board(board):
         rows_str.append(f"Row {r:02d}: " + "  ".join(row))
     return "\n".join(rows_str)
 
-def get_llm_move(board_state, annotated_moves_str, raw_moves_list, ai_provider, model_name, temperature, last_move, fallback_enabled, callback):
+def get_llm_move(board_state, annotated_moves_str, raw_moves_list, ai_provider, model_name, temperature, prompt_prefix, last_move, fallback_enabled, callback):
     """
     Runs an API call in a background thread and calls callback(r, c, is_fallback) when done.
     If the AI fails to produce a valid move and fallback_enabled is True, we pass back (None, None, True).
@@ -35,6 +35,8 @@ def get_llm_move(board_state, annotated_moves_str, raw_moves_list, ai_provider, 
         cols = len(board_state[0]) if rows > 0 else 0
         prompt = f"""You are the "Grandmaster Architect" playing a specialized {rows}x{cols} version of Tic-Tac-Toe.
 You are playing as 'D' (Dog). The human player is 'C' (Cat). Empty spaces are '.'.
+
+{prompt_prefix}
 
 Winning Conditions:
 - Horizontal: 3 or 4 in a row (a full row).

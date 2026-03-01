@@ -60,20 +60,22 @@ class CatsDogsApp(tk.Tk):
         self.p1_model_choice = tk.StringVar(value="Local Qwen")
         self.p1_centaur = tk.BooleanVar(value=False)
         self.p1_fallback = tk.BooleanVar(value=False)
-        self.p1_local_algo = tk.StringVar(value="Minimax")
         self.p1_mm_depth = tk.StringVar(value="4")
         self.p1_mcts_sims = tk.StringVar(value="1000")
         self.p1_temperature = tk.DoubleVar(value=0.1)
+        self.p1_prompt_prefix = tk.StringVar(value="")
         
         self.p2_type = tk.StringVar(value="AI")
         self.p2_provider = tk.StringVar(value="Local Ollama")
         self.p2_model_choice = tk.StringVar(value="Local DeepSeek")
         self.p2_centaur = tk.BooleanVar(value=False)
         self.p2_fallback = tk.BooleanVar(value=False)
-        self.p2_local_algo = tk.StringVar(value="Minimax")
         self.p2_mm_depth = tk.StringVar(value="4")
         self.p2_mcts_sims = tk.StringVar(value="1000")
         self.p2_temperature = tk.DoubleVar(value=0.1)
+        self.p2_prompt_prefix = tk.StringVar(value="")
+
+        self.auto_play = tk.BooleanVar(value=False)
 
         # Setup tracing for auto-updating models based on provider
         self.p1_provider.trace_add("write", lambda var, index, mode: self.on_provider_change(1))
@@ -82,6 +84,8 @@ class CatsDogsApp(tk.Tk):
         # Pre-declare dynamic widgets that cause lints
         self.dummy_img: any = None
         self.next_round_btn: any = None
+        self.stats_box: any = None
+        self.status_label: any = None
 
         self.create_widgets()
         self.recreate_board_ui()
@@ -159,14 +163,14 @@ class CatsDogsApp(tk.Tk):
         
         sub_p1 = tk.Frame(p1_f, bg="white")
         sub_p1.pack(fill=tk.X, pady=2)
-        tk.Label(sub_p1, text="Algo:", font=("Arial", 8, "italic"), bg="white").grid(row=0, column=0, sticky="w")
-        tk.OptionMenu(sub_p1, self.p1_local_algo, "Minimax", "Monte Carlo").grid(row=0, column=1, sticky="ew")
-        tk.Label(sub_p1, text="Depth:", font=("Arial", 8, "italic"), bg="white").grid(row=1, column=0, sticky="w")
-        tk.OptionMenu(sub_p1, self.p1_mm_depth, "1", "2", "3", "4", "5", "6", "7").grid(row=1, column=1, sticky="ew")
-        tk.Label(sub_p1, text="Sims:", font=("Arial", 8, "italic"), bg="white").grid(row=2, column=0, sticky="w")
-        tk.OptionMenu(sub_p1, self.p1_mcts_sims, "500", "1000", "2500", "5000", "10000").grid(row=2, column=1, sticky="ew")
-        tk.Label(sub_p1, text="Temp:", font=("Arial", 8, "italic"), bg="white").grid(row=3, column=0, sticky="w")
-        tk.Scale(sub_p1, variable=self.p1_temperature, from_=0.0, to=1.0, resolution=0.05, orient=tk.HORIZONTAL, bg="white").grid(row=3, column=1, sticky="ew")
+        tk.Label(sub_p1, text="Depth(Minimax):", font=("Arial", 8, "italic"), bg="white").grid(row=0, column=0, sticky="w")
+        tk.OptionMenu(sub_p1, self.p1_mm_depth, "1", "2", "3", "4", "5", "6", "7").grid(row=0, column=1, sticky="ew")
+        tk.Label(sub_p1, text="Sims(MCTS):", font=("Arial", 8, "italic"), bg="white").grid(row=1, column=0, sticky="w")
+        tk.OptionMenu(sub_p1, self.p1_mcts_sims, "500", "1000", "2500", "5000", "10000").grid(row=1, column=1, sticky="ew")
+        tk.Label(sub_p1, text="Temp:", font=("Arial", 8, "italic"), bg="white").grid(row=2, column=0, sticky="w")
+        tk.Scale(sub_p1, variable=self.p1_temperature, from_=0.0, to=1.0, resolution=0.05, orient=tk.HORIZONTAL, bg="white").grid(row=2, column=1, sticky="ew")
+        tk.Label(sub_p1, text="Strategy Prefix:", font=("Arial", 8, "italic"), bg="white").grid(row=3, column=0, sticky="w")
+        tk.Entry(sub_p1, textvariable=self.p1_prompt_prefix, font=("Consolas", 8)).grid(row=3, column=1, sticky="ew")
 
         # TEAM P2
         tk.Label(left_panel, text="TEAM DOG (P2)", font=("Arial", 12, "bold"), bg="#64B5F6", fg="white").pack(fill=tk.X, pady=(20, 5))
@@ -182,16 +186,17 @@ class CatsDogsApp(tk.Tk):
 
         sub_p2 = tk.Frame(p2_f, bg="white")
         sub_p2.pack(fill=tk.X, pady=2)
-        tk.Label(sub_p2, text="Algo:", font=("Arial", 8, "italic"), bg="white").grid(row=0, column=0, sticky="w")
-        tk.OptionMenu(sub_p2, self.p2_local_algo, "Minimax", "Monte Carlo").grid(row=0, column=1, sticky="ew")
-        tk.Label(sub_p2, text="Depth:", font=("Arial", 8, "italic"), bg="white").grid(row=1, column=0, sticky="w")
-        tk.OptionMenu(sub_p2, self.p2_mm_depth, "1", "2", "3", "4", "5", "6", "7").grid(row=1, column=1, sticky="ew")
-        tk.Label(sub_p2, text="Sims:", font=("Arial", 8, "italic"), bg="white").grid(row=2, column=0, sticky="w")
-        tk.OptionMenu(sub_p2, self.p2_mcts_sims, "500", "1000", "2500", "5000", "10000").grid(row=2, column=1, sticky="ew")
-        tk.Label(sub_p2, text="Temp:", font=("Arial", 8, "italic"), bg="white").grid(row=3, column=0, sticky="w")
-        tk.Scale(sub_p2, variable=self.p2_temperature, from_=0.0, to=1.0, resolution=0.05, orient=tk.HORIZONTAL, bg="white").grid(row=3, column=1, sticky="ew")
+        tk.Label(sub_p2, text="Depth(Minimax):", font=("Arial", 8, "italic"), bg="white").grid(row=0, column=0, sticky="w")
+        tk.OptionMenu(sub_p2, self.p2_mm_depth, "1", "2", "3", "4", "5", "6", "7").grid(row=0, column=1, sticky="ew")
+        tk.Label(sub_p2, text="Sims(MCTS):", font=("Arial", 8, "italic"), bg="white").grid(row=1, column=0, sticky="w")
+        tk.OptionMenu(sub_p2, self.p2_mcts_sims, "500", "1000", "2500", "5000", "10000").grid(row=1, column=1, sticky="ew")
+        tk.Label(sub_p2, text="Temp:", font=("Arial", 8, "italic"), bg="white").grid(row=2, column=0, sticky="w")
+        tk.Scale(sub_p2, variable=self.p2_temperature, from_=0.0, to=1.0, resolution=0.05, orient=tk.HORIZONTAL, bg="white").grid(row=2, column=1, sticky="ew")
+        tk.Label(sub_p2, text="Strategy Prefix:", font=("Arial", 8, "italic"), bg="white").grid(row=3, column=0, sticky="w")
+        tk.Entry(sub_p2, textvariable=self.p2_prompt_prefix, font=("Consolas", 8)).grid(row=3, column=1, sticky="ew")
 
         # Next Round Button in Left Panel
+        tk.Checkbutton(left_panel, text="Auto-Play Next Round", variable=self.auto_play, bg="white", font=("Arial", 9, "bold")).pack(side=tk.BOTTOM, pady=(0, 5))
         self.next_round_btn = tk.Button(left_panel, text="Next Round", command=self.next_round, state=tk.DISABLED, bg="#4CAF50", fg="white", font=("Arial", 12, "bold"))
         self.next_round_btn.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
 
@@ -208,7 +213,7 @@ class CatsDogsApp(tk.Tk):
         self.board_container.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=20)
         self.board_frame = None
 
-    def update_stats(self, latency=0, confidence="N/A", provider="Local Ollama"):
+    def update_stats(self, latency=0, confidence="N/A", provider="Local Ollama", depth=4, sims=1000, temp=0.1):
         self.stats_box.delete("1.0", tk.END)
         self.stats_box.insert(tk.END, f"Move Latency: {latency:.2f}s\n")
         self.stats_box.insert(tk.END, f"AI Logic: {confidence}\n")
@@ -219,6 +224,13 @@ class CatsDogsApp(tk.Tk):
             hardware = f"Cloud ({provider})"
             
         self.stats_box.insert(tk.END, f"Hardware: {hardware}\n")
+        
+        if provider == "Minimax":
+            self.stats_box.insert(tk.END, f"Setting: Depth {depth}\n")
+        elif provider == "Monte Carlo":
+            self.stats_box.insert(tk.END, f"Setting: Sims {sims}\n")
+        else:
+            self.stats_box.insert(tk.END, f"Setting: Temp {temp}\n")
 
     def recreate_board_ui(self):
         if self.board_frame: self.board_frame.destroy()
@@ -268,15 +280,17 @@ class CatsDogsApp(tk.Tk):
         p = self.game.current_turn
         # Determine which team variables to use
         if p == 1:
-            prov, choice, cent, fallback, local_algo = self.p1_provider.get(), self.p1_model_choice.get(), False, self.p1_fallback.get(), self.p1_local_algo.get()
+            prov, choice, cent, fallback = self.p1_provider.get(), self.p1_model_choice.get(), False, self.p1_fallback.get()
             mm_depth = int(self.p1_mm_depth.get())
             mcts_sims = int(self.p1_mcts_sims.get())
             temp = self.p1_temperature.get()
+            prefix = self.p1_prompt_prefix.get()
         else:
-            prov, choice, cent, fallback, local_algo = self.p2_provider.get(), self.p2_model_choice.get(), False, self.p2_fallback.get(), self.p2_local_algo.get()
+            prov, choice, cent, fallback = self.p2_provider.get(), self.p2_model_choice.get(), False, self.p2_fallback.get()
             mm_depth = int(self.p2_mm_depth.get())
             mcts_sims = int(self.p2_mcts_sims.get())
             temp = self.p2_temperature.get()
+            prefix = self.p2_prompt_prefix.get()
 
         # Map friendly name to model string
         mod = self.ai_models.get(choice, choice)
@@ -286,14 +300,14 @@ class CatsDogsApp(tk.Tk):
         if prov == "Monte Carlo":
             def mcts_worker():
                 m = self.game.get_best_move_mcts(p, simulations=mcts_sims)
-                self.after(0, lambda: self.apply_ai_move(m, "MCTS", curr_c, prov))
+                self.after(0, lambda: self.apply_ai_move(m, "MCTS", curr_c, prov, mm_depth, mcts_sims, temp))
             threading.Thread(target=mcts_worker, daemon=True).start()
             return
 
         # 2. Minimax Logic
         if prov == "Minimax":
             m = self.game.get_best_move(p, depth=mm_depth)
-            self.after(500, lambda: self.apply_ai_move(m, "Optimal", curr_c, prov))
+            self.after(500, lambda: self.apply_ai_move(m, "Optimal", curr_c, prov, mm_depth, mcts_sims, temp))
             return
 
         # 3. LLM Logic (Existing)
@@ -304,23 +318,17 @@ class CatsDogsApp(tk.Tk):
         
         def handle_llm_callback(r, c, is_fallback):
             if is_fallback:
-                # Dispatch to local algorithm
-                if local_algo == "Monte Carlo":
-                    def mcts_fallback_worker():
-                        fm = self.game.get_best_move_mcts(p, simulations=mcts_sims)
-                        self.after(0, lambda: self.apply_ai_move(fm, "MCTS (Fallback)", curr_c, prov))
-                    threading.Thread(target=mcts_fallback_worker, daemon=True).start()
-                else: # Minimax
-                    fm = self.game.get_best_move(p, depth=mm_depth)
-                    self.after(500, lambda: self.apply_ai_move(fm, "Optimal (Fallback)", curr_c, prov))
+                # Dispatch to Minimax as Default Fallback
+                fm = self.game.get_best_move(p, depth=mm_depth)
+                self.after(500, lambda: self.apply_ai_move(fm, "Optimal (Fallback)", curr_c, prov, mm_depth, mcts_sims, temp))
             else:
-                self.after(0, lambda: self.apply_ai_move((r, c) if r is not None else None, "LLM", curr_c, prov))
+                self.after(0, lambda: self.apply_ai_move((r, c) if r is not None else None, "LLM", curr_c, prov, mm_depth, mcts_sims, temp))
 
-        get_llm_move(self.game.board, m_str, safe, prov, mod, temp, self.game.last_move, fallback, handle_llm_callback)
+        get_llm_move(self.game.board, m_str, safe, prov, mod, temp, prefix, self.game.last_move, fallback, handle_llm_callback)
 
-    def apply_ai_move(self, move, conf, counter, provider="Local Ollama"):
+    def apply_ai_move(self, move, conf, counter, provider="Local Ollama", depth=4, sims=1000, temp=0.1):
         if counter != self.ai_move_counter: return
-        self.update_stats(time.time() - self.start_time, conf, provider)
+        self.update_stats(time.time() - self.start_time, conf, provider, depth, sims, temp)
         
         if move is None:
             self.status_label.config(text="API Error / Invalid Move", fg="red")
@@ -353,6 +361,8 @@ class CatsDogsApp(tk.Tk):
         if self.cat_wins >= self.target_wins or self.dog_wins >= self.target_wins:
             winner = "Cats" if self.cat_wins >= self.target_wins else "Dogs"
             messagebox.showinfo("Tournament Over", f"{winner} are the champions!")
+        elif self.auto_play.get():
+            self.after(1000, lambda: self.next_round())
 
     def next_round(self):
         if self.cat_wins >= self.target_wins or self.dog_wins >= self.target_wins:

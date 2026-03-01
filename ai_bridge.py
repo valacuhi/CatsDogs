@@ -25,10 +25,10 @@ def format_board(board):
         rows_str.append(f"Row {r:02d}: " + "  ".join(row))
     return "\n".join(rows_str)
 
-def get_llm_move(board_state, annotated_moves_str, raw_moves_list, ai_provider, model_name, temperature, last_move, callback):
+def get_llm_move(board_state, annotated_moves_str, raw_moves_list, ai_provider, model_name, temperature, last_move, fallback_enabled, callback):
     """
-    Runs an API call in a background thread and calls callback(r, c) when done.
-    If the AI fails to produce a valid move, it falls back to a random legal move to prevent game breakage.
+    Runs an API call in a background thread and calls callback(r, c, is_fallback) when done.
+    If the AI fails to produce a valid move and fallback_enabled is True, we pass back (None, None, True).
     """
     def worker():
         rows = len(board_state)
@@ -90,6 +90,21 @@ Finally, your very last line MUST be exactly: "MOVE: r, c" where r and c are the
                 response = requests.post(url, headers=headers, json=data)
                 response.raise_for_status()
                 result_text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+            elif ai_provider == "OpenRouter":
+                api_key = os.environ.get("OPENROUTER_API_KEY")
+                if not api_key:
+                    raise ValueError("OPENROUTER_API_KEY not found in environment.")
+                
+                url = "https://openrouter.ai/api/v1/chat/completions"
+                headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+                data = {
+                    "model": model_name,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": float(temperature)
+                }
+                response = requests.post(url, headers=headers, json=data)
+                response.raise_for_status()
+                result_text = response.json()["choices"][0]["message"]["content"]
             
             else:
                 raise ValueError(f"Unknown AI Provider: {ai_provider}")
@@ -99,24 +114,22 @@ Finally, your very last line MUST be exactly: "MOVE: r, c" where r and c are the
             if match:
                 r, c = int(match.group(1)), int(match.group(2))
                 if (r, c) in raw_moves_list:
-                    callback(r, c)
+                    callback(r, c, False)
                     return
             
             print(f"AI returned invalid format or illegal move: {result_text}")
             # Fallback if AI hallucinates formatting or makes illegal move
-            if raw_moves_list:
-                fallback_move = random.choice(raw_moves_list)
-                callback(fallback_move[0], fallback_move[1])
+            if fallback_enabled and raw_moves_list:
+                callback(None, None, True)
             else:
-                callback(None, None)
+                callback(None, None, False)
 
         except Exception as e:
             print(f"AI Bridge Thread Error: {e}")
-            if raw_moves_list:
-                fallback_move = random.choice(raw_moves_list)
-                callback(fallback_move[0], fallback_move[1])
+            if fallback_enabled and raw_moves_list:
+                callback(None, None, True)
             else:
-                callback(None, None)
+                callback(None, None, False)
 
     thread = threading.Thread(target=worker, daemon=True)
     thread.start()

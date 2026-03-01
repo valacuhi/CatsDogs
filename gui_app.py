@@ -39,6 +39,7 @@ class CatsDogsApp(tk.Tk):
 
         # Core State
         self.board_size_var = tk.StringVar(value="15x3")
+        self.hardware_choice = tk.StringVar(value="Ryzen AI 9")
         self.game = GameState(rows=15, cols=3, win_v=4, win_h=3, win_d=3)
         self.cat_wins, self.dog_wins = 0, 0
         self.target_wins = 5
@@ -49,7 +50,7 @@ class CatsDogsApp(tk.Tk):
         self.ai_models = {
             "Local Qwen": "qwen2.5-coder:7b",
             "Local DeepSeek": "deepseek-r1:8b",
-            "Gemini 1.5 Pro": "gemini-1.5-pro",
+            "Gemini 2.5 Pro": "gemini-2.5-pro",
             "Gemini 2.0 Flash": "gemini-2.0-flash"
         }
 
@@ -58,11 +59,29 @@ class CatsDogsApp(tk.Tk):
         self.p1_provider = tk.StringVar(value="Local Ollama")
         self.p1_model_choice = tk.StringVar(value="Local Qwen")
         self.p1_centaur = tk.BooleanVar(value=False)
+        self.p1_fallback = tk.BooleanVar(value=False)
+        self.p1_local_algo = tk.StringVar(value="Minimax")
+        self.p1_mm_depth = tk.StringVar(value="4")
+        self.p1_mcts_sims = tk.StringVar(value="1000")
+        self.p1_temperature = tk.DoubleVar(value=0.1)
         
         self.p2_type = tk.StringVar(value="AI")
         self.p2_provider = tk.StringVar(value="Local Ollama")
         self.p2_model_choice = tk.StringVar(value="Local DeepSeek")
         self.p2_centaur = tk.BooleanVar(value=False)
+        self.p2_fallback = tk.BooleanVar(value=False)
+        self.p2_local_algo = tk.StringVar(value="Minimax")
+        self.p2_mm_depth = tk.StringVar(value="4")
+        self.p2_mcts_sims = tk.StringVar(value="1000")
+        self.p2_temperature = tk.DoubleVar(value=0.1)
+
+        # Setup tracing for auto-updating models based on provider
+        self.p1_provider.trace_add("write", lambda var, index, mode: self.on_provider_change(1))
+        self.p2_provider.trace_add("write", lambda var, index, mode: self.on_provider_change(2))
+
+        # Pre-declare dynamic widgets that cause lints
+        self.dummy_img: any = None
+        self.next_round_btn: any = None
 
         self.create_widgets()
         self.recreate_board_ui()
@@ -74,6 +93,22 @@ class CatsDogsApp(tk.Tk):
         except:
             self.cat_img = None
             self.dog_img = None
+
+    def on_provider_change(self, player):
+        """Updates the default model string when the provider changes."""
+        provider = self.p1_provider.get() if player == 1 else self.p2_provider.get()
+        model_var = self.p1_model_choice if player == 1 else self.p2_model_choice
+
+        if provider == "Local Ollama":
+            model_var.set("Local Qwen" if player == 1 else "Local DeepSeek")
+        elif provider == "Google Gemini":
+            model_var.set("Gemini 2.5 Pro") # Default Gemini model
+        elif provider == "OpenRouter":
+            model_var.set("deepseek/deepseek-r1")
+        elif provider == "Minimax":
+            model_var.set("Optimal (Depth 4)")
+        elif provider == "Monte Carlo":
+            model_var.set("MCTS")
 
     def on_size_change(self):
         """Restores the 12x4 board logic from the backup."""
@@ -103,6 +138,13 @@ class CatsDogsApp(tk.Tk):
         tk.Radiobutton(variant_f, text="15x3", variable=self.board_size_var, value="15x3", bg="white", command=self.on_size_change).pack(side=tk.LEFT)
         tk.Radiobutton(variant_f, text="12x4", variable=self.board_size_var, value="12x4", bg="white", command=self.on_size_change).pack(side=tk.LEFT)
 
+        # Hardware Selector
+        hw_f = tk.Frame(left_panel, bg="white")
+        hw_f.pack(fill=tk.X, pady=(0, 10))
+        tk.Label(hw_f, text="Host HW:", font=("Arial", 10, "bold"), bg="white").pack(side=tk.LEFT)
+        tk.Radiobutton(hw_f, text="Ryzen AI 9", variable=self.hardware_choice, value="Ryzen AI 9", bg="white").pack(side=tk.LEFT)
+        tk.Radiobutton(hw_f, text="Intel i7", variable=self.hardware_choice, value="Intel i7-7700HQ", bg="white").pack(side=tk.LEFT)
+
         # TEAM P1
         tk.Label(left_panel, text="TEAM CAT (P1)", font=("Arial", 12, "bold"), bg="#FFD54F").pack(fill=tk.X, pady=5)
         tk.Radiobutton(left_panel, text="Human", variable=self.p1_type, value="Human", bg="white").pack(anchor="w")
@@ -110,9 +152,21 @@ class CatsDogsApp(tk.Tk):
         
         p1_f = tk.LabelFrame(left_panel, text="AI Config (P1)", bg="white")
         p1_f.pack(fill=tk.X, pady=5)
-        tk.OptionMenu(p1_f, self.p1_provider, "Local Ollama", "Google Gemini", "OpenRouter", "Minimax").pack(fill=tk.X)
+        tk.OptionMenu(p1_f, self.p1_provider, "Local Ollama", "Google Gemini", "OpenRouter", "Minimax", "Monte Carlo").pack(fill=tk.X)
         tk.Entry(p1_f, textvariable=self.p1_model_choice, font=("Consolas", 9)).pack(fill=tk.X, pady=2)
         tk.Checkbutton(p1_f, text="Use Centaur Mode", variable=self.p1_centaur, bg="white").pack(anchor="w")
+        tk.Checkbutton(p1_f, text="Fallback on Error", variable=self.p1_fallback, bg="white").pack(anchor="w")
+        
+        sub_p1 = tk.Frame(p1_f, bg="white")
+        sub_p1.pack(fill=tk.X, pady=2)
+        tk.Label(sub_p1, text="Algo:", font=("Arial", 8, "italic"), bg="white").grid(row=0, column=0, sticky="w")
+        tk.OptionMenu(sub_p1, self.p1_local_algo, "Minimax", "Monte Carlo").grid(row=0, column=1, sticky="ew")
+        tk.Label(sub_p1, text="Depth:", font=("Arial", 8, "italic"), bg="white").grid(row=1, column=0, sticky="w")
+        tk.OptionMenu(sub_p1, self.p1_mm_depth, "1", "2", "3", "4", "5", "6", "7").grid(row=1, column=1, sticky="ew")
+        tk.Label(sub_p1, text="Sims:", font=("Arial", 8, "italic"), bg="white").grid(row=2, column=0, sticky="w")
+        tk.OptionMenu(sub_p1, self.p1_mcts_sims, "500", "1000", "2500", "5000", "10000").grid(row=2, column=1, sticky="ew")
+        tk.Label(sub_p1, text="Temp:", font=("Arial", 8, "italic"), bg="white").grid(row=3, column=0, sticky="w")
+        tk.Scale(sub_p1, variable=self.p1_temperature, from_=0.0, to=1.0, resolution=0.05, orient=tk.HORIZONTAL, bg="white").grid(row=3, column=1, sticky="ew")
 
         # TEAM P2
         tk.Label(left_panel, text="TEAM DOG (P2)", font=("Arial", 12, "bold"), bg="#64B5F6", fg="white").pack(fill=tk.X, pady=(20, 5))
@@ -121,9 +175,21 @@ class CatsDogsApp(tk.Tk):
         
         p2_f = tk.LabelFrame(left_panel, text="AI Config (P2)", bg="white")
         p2_f.pack(fill=tk.X, pady=5)
-        tk.OptionMenu(p2_f, self.p2_provider, "Local Ollama", "Google Gemini", "OpenRouter", "Minimax").pack(fill=tk.X)
+        tk.OptionMenu(p2_f, self.p2_provider, "Local Ollama", "Google Gemini", "OpenRouter", "Minimax", "Monte Carlo").pack(fill=tk.X)
         tk.Entry(p2_f, textvariable=self.p2_model_choice, font=("Consolas", 9)).pack(fill=tk.X, pady=2)
         tk.Checkbutton(p2_f, text="Use Centaur Mode", variable=self.p2_centaur, bg="white").pack(anchor="w")
+        tk.Checkbutton(p2_f, text="Fallback on Error", variable=self.p2_fallback, bg="white").pack(anchor="w")
+
+        sub_p2 = tk.Frame(p2_f, bg="white")
+        sub_p2.pack(fill=tk.X, pady=2)
+        tk.Label(sub_p2, text="Algo:", font=("Arial", 8, "italic"), bg="white").grid(row=0, column=0, sticky="w")
+        tk.OptionMenu(sub_p2, self.p2_local_algo, "Minimax", "Monte Carlo").grid(row=0, column=1, sticky="ew")
+        tk.Label(sub_p2, text="Depth:", font=("Arial", 8, "italic"), bg="white").grid(row=1, column=0, sticky="w")
+        tk.OptionMenu(sub_p2, self.p2_mm_depth, "1", "2", "3", "4", "5", "6", "7").grid(row=1, column=1, sticky="ew")
+        tk.Label(sub_p2, text="Sims:", font=("Arial", 8, "italic"), bg="white").grid(row=2, column=0, sticky="w")
+        tk.OptionMenu(sub_p2, self.p2_mcts_sims, "500", "1000", "2500", "5000", "10000").grid(row=2, column=1, sticky="ew")
+        tk.Label(sub_p2, text="Temp:", font=("Arial", 8, "italic"), bg="white").grid(row=3, column=0, sticky="w")
+        tk.Scale(sub_p2, variable=self.p2_temperature, from_=0.0, to=1.0, resolution=0.05, orient=tk.HORIZONTAL, bg="white").grid(row=3, column=1, sticky="ew")
 
         # Next Round Button in Left Panel
         self.next_round_btn = tk.Button(left_panel, text="Next Round", command=self.next_round, state=tk.DISABLED, bg="#4CAF50", fg="white", font=("Arial", 12, "bold"))
@@ -142,11 +208,17 @@ class CatsDogsApp(tk.Tk):
         self.board_container.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=20)
         self.board_frame = None
 
-    def update_stats(self, latency=0, confidence="N/A"):
+    def update_stats(self, latency=0, confidence="N/A", provider="Local Ollama"):
         self.stats_box.delete("1.0", tk.END)
         self.stats_box.insert(tk.END, f"Move Latency: {latency:.2f}s\n")
         self.stats_box.insert(tk.END, f"AI Logic: {confidence}\n")
-        self.stats_box.insert(tk.END, f"Hardware: Ryzen AI 9 NPU\n")
+        
+        if provider in ["Local Ollama", "Minimax", "Monte Carlo"]:
+            hardware = self.hardware_choice.get()
+        else:
+            hardware = f"Cloud ({provider})"
+            
+        self.stats_box.insert(tk.END, f"Hardware: {hardware}\n")
 
     def recreate_board_ui(self):
         if self.board_frame: self.board_frame.destroy()
@@ -196,9 +268,15 @@ class CatsDogsApp(tk.Tk):
         p = self.game.current_turn
         # Determine which team variables to use
         if p == 1:
-            prov, choice, cent = self.p1_provider.get(), self.p1_model_choice.get(), False
+            prov, choice, cent, fallback, local_algo = self.p1_provider.get(), self.p1_model_choice.get(), False, self.p1_fallback.get(), self.p1_local_algo.get()
+            mm_depth = int(self.p1_mm_depth.get())
+            mcts_sims = int(self.p1_mcts_sims.get())
+            temp = self.p1_temperature.get()
         else:
-            prov, choice, cent = self.p2_provider.get(), self.p2_model_choice.get(), False
+            prov, choice, cent, fallback, local_algo = self.p2_provider.get(), self.p2_model_choice.get(), False, self.p2_fallback.get(), self.p2_local_algo.get()
+            mm_depth = int(self.p2_mm_depth.get())
+            mcts_sims = int(self.p2_mcts_sims.get())
+            temp = self.p2_temperature.get()
 
         # Map friendly name to model string
         mod = self.ai_models.get(choice, choice)
@@ -207,15 +285,15 @@ class CatsDogsApp(tk.Tk):
         # 1. MCTS Logic (Restored from backup)
         if prov == "Monte Carlo":
             def mcts_worker():
-                m = self.game.get_best_move_mcts(p, simulations=1000)
-                self.after(0, lambda: self.apply_ai_move(m, "MCTS", curr_c))
+                m = self.game.get_best_move_mcts(p, simulations=mcts_sims)
+                self.after(0, lambda: self.apply_ai_move(m, "MCTS", curr_c, prov))
             threading.Thread(target=mcts_worker, daemon=True).start()
             return
 
         # 2. Minimax Logic
         if prov == "Minimax":
-            m = self.game.get_best_move(p, depth=4)
-            self.after(500, lambda: self.apply_ai_move(m, "Optimal", curr_c))
+            m = self.game.get_best_move(p, depth=mm_depth)
+            self.after(500, lambda: self.apply_ai_move(m, "Optimal", curr_c, prov))
             return
 
         # 3. LLM Logic (Existing)
@@ -224,12 +302,31 @@ class CatsDogsApp(tk.Tk):
         safe = [m for m, s in evals if s > -50] or [m for m, s in evals]
         m_str = "\n".join([f"({r}, {c}) [{'Adv' if s>0 else 'Safe'}]" for (r,c), s in evals if (r,c) in safe][:7])
         
-        get_llm_move(self.game.board, m_str, safe, prov, mod, 0.1, self.game.last_move, 
-                     lambda r, c: self.after(0, lambda: self.apply_ai_move((r, c), "LLM", curr_c)))
+        def handle_llm_callback(r, c, is_fallback):
+            if is_fallback:
+                # Dispatch to local algorithm
+                if local_algo == "Monte Carlo":
+                    def mcts_fallback_worker():
+                        fm = self.game.get_best_move_mcts(p, simulations=mcts_sims)
+                        self.after(0, lambda: self.apply_ai_move(fm, "MCTS (Fallback)", curr_c, prov))
+                    threading.Thread(target=mcts_fallback_worker, daemon=True).start()
+                else: # Minimax
+                    fm = self.game.get_best_move(p, depth=mm_depth)
+                    self.after(500, lambda: self.apply_ai_move(fm, "Optimal (Fallback)", curr_c, prov))
+            else:
+                self.after(0, lambda: self.apply_ai_move((r, c) if r is not None else None, "LLM", curr_c, prov))
 
-    def apply_ai_move(self, move, conf, counter):
+        get_llm_move(self.game.board, m_str, safe, prov, mod, temp, self.game.last_move, fallback, handle_llm_callback)
+
+    def apply_ai_move(self, move, conf, counter, provider="Local Ollama"):
         if counter != self.ai_move_counter: return
-        self.update_stats(time.time() - self.start_time, conf)
+        self.update_stats(time.time() - self.start_time, conf, provider)
+        
+        if move is None:
+            self.status_label.config(text="API Error / Invalid Move", fg="red")
+            self.ai_thinking = False
+            return
+
         self.ai_thinking = False
         if move: self.apply_move(move[0], move[1])
 

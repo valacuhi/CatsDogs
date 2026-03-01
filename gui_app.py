@@ -43,6 +43,7 @@ class CatsDogsApp(tk.Tk):
         self.game = GameState(rows=15, cols=3, win_v=4, win_h=3, win_d=3)
         self.cat_wins, self.dog_wins = 0, 0
         self.target_wins = 5
+        self.next_starter = 1
         self.ai_thinking = False
         self.ai_move_counter = 0
 
@@ -342,8 +343,12 @@ class CatsDogsApp(tk.Tk):
         winner, coords = self.game.check_win()
         if winner != 0:
             for r, c in coords: self.buttons[r][c].config(bg="#ff4d4d")
-            if winner == 1: self.cat_wins += 1
-            else: self.dog_wins += 1
+            if winner == 1: 
+                self.cat_wins += 1
+                self.next_starter = 2
+            else: 
+                self.dog_wins += 1
+                self.next_starter = 1
             self.update_score()
             self.end_round()
             return True
@@ -367,8 +372,9 @@ class CatsDogsApp(tk.Tk):
     def next_round(self):
         if self.cat_wins >= self.target_wins or self.dog_wins >= self.target_wins:
             self.cat_wins, self.dog_wins = 0, 0
+            self.next_starter = 1
             self.update_score()
-        self.game.reset()
+        self.game.reset(starting_player=self.next_starter)
         self.recreate_board_ui()
         self.next_round_btn.config(state=tk.DISABLED)
         self.ai_thinking = False

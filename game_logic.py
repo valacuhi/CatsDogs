@@ -13,9 +13,9 @@ class GameState:
         self.current_turn = 1 # 1 always starts (Cat)
         self.last_move = None
 
-    def reset(self):
+    def reset(self, starting_player=1):
         self.board = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
-        self.current_turn = 1
+        self.current_turn = starting_player
         self.last_move = None
 
     def make_move(self, r, c, player):

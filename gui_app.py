@@ -1,527 +1,272 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from game_logic import GameState
 from ai_bridge import get_llm_move
 import pygame
 import os
 import glob
 import random
+import time
+import threading
+
 try:
     from PIL import Image, ImageTk
 except ImportError:
     pass
 
 class CatsDogsApp(tk.Tk):
+
     def __init__(self):
         super().__init__()
-        self.title("Cats vs Dogs TicTacToe")
-        self.geometry("600x950")
+        self.title("AI Evolution Workbench: 15x3 / 12x4")
+        self.geometry("1150x950")
+        self.config(bg="#f0f0f0")
         
-        # Make the main window look nicer
-        self.config(bg="#e8e8e8")
-        
-        # Initialize Audio
-        pygame.mixer.init()
+        # --- ROBUST AUDIO INITIALIZATION ---
+        self.sound_active = tk.BooleanVar(value=False)
         self.sounds = {}
-        for s in ["cat_turn", "dog_turn", "cat_win_round", "dog_win_round", "cat_win_tournament", "dog_win_tournament"]:
-            files = glob.glob(os.path.join("Audio", f"{s}*.mp3"))
-            if files:
-                self.sounds[s] = [pygame.mixer.Sound(f) for f in files]
-        
-        # dynamic sizes
+        try:
+            pygame.mixer.init()
+            self.sound_active.set(True)
+            # Only try to load sounds if mixer actually initialized
+            for s in ["cat_turn", "dog_turn", "cat_win_round", "dog_win_round", "cat_win_tournament", "dog_win_tournament"]:
+                files = glob.glob(os.path.join("Audio", f"{s}*.mp3"))
+                if files:
+                    self.sounds[s] = [pygame.mixer.Sound(f) for f in files]
+        except (ImportError, NotImplementedError, pygame.error):
+            print("Audio mixer not available. Proceeding in silent mode.")
+            self.sound_active.set(False)
+
+        # Core State
         self.board_size_var = tk.StringVar(value="15x3")
-        self.rows = 15
-        self.cols = 3
-        
         self.game = GameState(rows=15, cols=3, win_v=4, win_h=3, win_d=3)
-        self.cat_wins = 0
-        self.dog_wins = 0
+        self.cat_wins, self.dog_wins = 0, 0
         self.target_wins = 5
-        self.buttons = []
         self.ai_thinking = False
-        self.cat_img = tk.PhotoImage(file="cat.png")
-        self.dog_img = tk.PhotoImage(file="dog.png")
-        
-        self.human_team = tk.IntVar(value=1)
-        self.sound_enabled = tk.BooleanVar(value=True)
-        self.starting_team = 1
         self.ai_move_counter = 0
-        
-        # Declare UI attributes to satisfy static type checkers / linters
-        self.score_label: tk.Label
-        self.ai_var: tk.StringVar
-        self.ai_models: dict
-        self.temp_slider: tk.Scale
-        self.minimax_depth_var: tk.IntVar
-        self.depth_menu: tk.OptionMenu
-        self.mcts_sim_var: tk.IntVar
-        self.sim_menu: tk.OptionMenu
-        self.status_label: tk.Label
-        self.next_round_btn: tk.Button
-        self.team_rbtn_cat: tk.Radiobutton
-        self.team_rbtn_dog: tk.Radiobutton
-        self.sound_chk: tk.Checkbutton
-        self.size_rbtn_15x3: tk.Radiobutton
-        self.size_rbtn_12x4: tk.Radiobutton
-        self.interrupt_btn: tk.Button
-        self.board_container: tk.Frame
-        self.board_frame: tk.Frame
-        
-        self.create_widgets()
-        self.recreate_board_ui()
-        
-    def create_widgets(self):
-        # ---------------- TOP BAR ----------------
-        top_frame = tk.Frame(self, bg="#d0d0d0")
-        top_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
-        
-        self.score_label = tk.Label(top_frame, text=f"Cats: {self.cat_wins} | Dogs: {self.dog_wins}", 
-                                    font=("Helvetica", 18, "bold"), bg="#d0d0d0")
-        self.score_label.pack(side=tk.LEFT, padx=10)
-        
-        rules_btn = tk.Button(top_frame, text="Game Rules", font=("Arial", 10, "bold"), command=self.show_rules)
-        rules_btn.pack(side=tk.RIGHT, padx=10)
-        
-        # ---------------- SIDEBAR ----------------
-        sidebar = tk.Frame(self, width=220, bg="#ffffff", bd=2, relief=tk.GROOVE)
-        sidebar.pack(side=tk.RIGHT, fill=tk.Y, padx=10, pady=10)
-        
-        tk.Label(sidebar, text="Tournament Mode", font=("Arial", 14, "bold"), bg="#ffffff", fg="#333333").pack(pady=(10, 5))
-        tk.Label(sidebar, text="First to 5 wins", font=("Arial", 10), bg="#ffffff", fg="#666666").pack()
-        
-        tk.Frame(sidebar, height=2, bg="#cccccc").pack(fill=tk.X, pady=10, padx=10)
-        
-        tk.Label(sidebar, text="Board Size", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=5)
-        self.size_rbtn_15x3 = tk.Radiobutton(sidebar, text="15x3", variable=self.board_size_var, value="15x3", bg="#ffffff", font=("Arial", 10), command=self.on_size_change)
-        self.size_rbtn_15x3.pack(anchor="w", padx=10)
-        self.size_rbtn_12x4 = tk.Radiobutton(sidebar, text="12x4", variable=self.board_size_var, value="12x4", bg="#ffffff", font=("Arial", 10), command=self.on_size_change)
-        self.size_rbtn_12x4.pack(anchor="w", padx=10)
-        
-        tk.Label(sidebar, text="Your Team", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=5)
-        self.team_rbtn_cat = tk.Radiobutton(sidebar, text="Cats", variable=self.human_team, value=1, bg="#ffffff", font=("Arial", 10))
-        self.team_rbtn_cat.pack(anchor="w", padx=10)
-        self.team_rbtn_dog = tk.Radiobutton(sidebar, text="Dogs", variable=self.human_team, value=2, bg="#ffffff", font=("Arial", 10))
-        self.team_rbtn_dog.pack(anchor="w", padx=10)
-        
-        tk.Frame(sidebar, height=2, bg="#cccccc").pack(fill=tk.X, pady=10, padx=10)
-        
-        tk.Label(sidebar, text="Opponent", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=5)
-        self.ai_var = tk.StringVar(value="Minimax")
-        self.ai_var.trace_add("write", self.on_ai_change)
-        
-        # Provide mapping for models
+
+        # Mapping for Models
         self.ai_models = {
-            "Minimax": "minimax",
-            "Monte Carlo": "mcts",
-            "Mistral 7B": "mistralai/mistral-7b-instruct:free",
-            "Gemma 3 27B": "google/gemma-3-27b-it:free",
-            "Qwen 3 Coder": "qwen/qwen3-coder:free",
-            "Llama 3 8B": "meta-llama/llama-3-8b-instruct:free",
-            "Llama 3.3 70B": "meta-llama/llama-3.3-70b-instruct:free",
-            "Claude 3.5 Sonnet": "anthropic/claude-3.5-sonnet",
-            "GPT-4o Mini": "openai/gpt-4o-mini",
-            "Gemini 2.5 Pro": "gemini-2.5-pro",
+            "Local Qwen": "qwen2.5-coder:7b",
+            "Local DeepSeek": "deepseek-r1:8b",
+            "Gemini 1.5 Pro": "gemini-1.5-pro",
             "Gemini 2.0 Flash": "gemini-2.0-flash"
         }
-        
-        ai_options = list(self.ai_models.keys())
-        self.ai_dropdown = tk.OptionMenu(sidebar, self.ai_var, *ai_options)
-        self.ai_dropdown.config(bg="#ffffff", width=16, font=("Arial", 10))
-        self.ai_dropdown.pack(pady=5, padx=10)
-            
-        tk.Label(sidebar, text="Minimax Depth", font=("Arial", 10, "bold"), bg="#ffffff").pack(pady=(10, 0))
-        self.minimax_depth_var = tk.IntVar(value=4)
-        self.depth_menu = tk.OptionMenu(sidebar, self.minimax_depth_var, 3, 4, 5, 6)
-        self.depth_menu.config(bg="#ffffff", width=10)
-        self.depth_menu.pack(pady=5)
-        
-        tk.Label(sidebar, text="MCTS Simulations", font=("Arial", 10, "bold"), bg="#ffffff").pack(pady=(10, 0))
-        self.mcts_sim_var = tk.IntVar(value=1000)
-        self.sim_menu = tk.OptionMenu(sidebar, self.mcts_sim_var, 500, 1000, 2500, 5000)
-        self.sim_menu.config(bg="#ffffff", width=10, state=tk.DISABLED)
-        self.sim_menu.pack(pady=5)
-            
-        tk.Label(sidebar, text="LLM Temperature (0.0-1.0)", bg="#ffffff", font=("Arial", 10, "bold")).pack(pady=(10,0))
-        self.temp_slider = tk.Scale(sidebar, from_=0.0, to=1.0, resolution=0.1, orient=tk.HORIZONTAL, bg="#ffffff", highlightthickness=0)
-        self.temp_slider.set(0.1)
-        self.temp_slider.pack(fill=tk.X, padx=10)
-        
-        tk.Frame(sidebar, height=2, bg="#cccccc").pack(fill=tk.X, pady=10, padx=10)
-        
-        self.sound_chk = tk.Checkbutton(sidebar, text="Sound ON", variable=self.sound_enabled, bg="#ffffff", font=("Arial", 10, "bold"))
-        self.sound_chk.pack(pady=5)
-        
-        self.status_label = tk.Label(sidebar, text="Ready", bg="#ffffff", fg="green", font=("Arial", 11, "italic"))
-        self.status_label.pack(pady=10)
-        
-        tk.Frame(sidebar, height=2, bg="#cccccc").pack(fill=tk.X, pady=10, padx=10)
 
-        self.next_round_btn = tk.Button(sidebar, text="Next Round", state=tk.DISABLED, command=self.next_round, 
-                                        font=("Arial", 12, "bold"), bg="#4CAF50", fg="white", activebackground="#45a049")
-        self.next_round_btn.pack(pady=20, fill=tk.X, padx=20)
+        # P1 & P2 Vars
+        self.p1_type = tk.StringVar(value="Human")
+        self.p1_provider = tk.StringVar(value="Local Ollama")
+        self.p1_model_choice = tk.StringVar(value="Local Qwen")
+        self.p1_centaur = tk.BooleanVar(value=False)
         
-        self.interrupt_btn = tk.Button(sidebar, text="Interrupt AI", state=tk.DISABLED, command=self.on_interrupt_click,
-                                       font=("Arial", 11, "bold"), bg="#f44336", fg="white", activebackground="#e53935")
-        self.interrupt_btn.pack(pady=0, fill=tk.X, padx=20)
-        
-        # ---------------- BOARD ----------------
-        self.board_container = tk.Frame(self, bg="#e8e8e8")
-        self.board_container.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=20, pady=10)
-        self.board_frame = None
-        
-    def on_ai_change(self, *args):
-        if hasattr(self, 'depth_menu') and hasattr(self, 'sim_menu'):
-            choice = self.ai_var.get()
-            if choice == "Minimax":
-                self.depth_menu.config(state=tk.NORMAL)
-                self.sim_menu.config(state=tk.DISABLED)
-            elif choice == "Monte Carlo":
-                self.depth_menu.config(state=tk.DISABLED)
-                self.sim_menu.config(state=tk.NORMAL)
-            else:
-                self.depth_menu.config(state=tk.DISABLED)
-                self.sim_menu.config(state=tk.DISABLED)
-        
-    def recreate_board_ui(self):
-        if self.board_frame is not None:
-            self.board_frame.destroy()
-            
-        self.board_frame = tk.Frame(self.board_container, bg="#000000") 
-        self.board_frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
-        
-        self.buttons = []
-        for r in range(self.rows):
-            row_buttons = []
-            for c in range(self.cols):
-                cell_frame = tk.Frame(self.board_frame, width=55, height=55)
-                cell_frame.grid(row=r, column=c, padx=1, pady=1)
-                cell_frame.pack_propagate(False)
-                
-                def make_cmd(row: int, col: int):
-                    return lambda: self.on_click(row, col)
+        self.p2_type = tk.StringVar(value="AI")
+        self.p2_provider = tk.StringVar(value="Local Ollama")
+        self.p2_model_choice = tk.StringVar(value="Local DeepSeek")
+        self.p2_centaur = tk.BooleanVar(value=False)
 
-                btn = tk.Button(cell_frame, text=" ", font=("sans-serif", 14), bg="white", fg="black",
-                                command=make_cmd(r, c))
-                btn.pack(expand=True, fill="both")
-                row_buttons.append(btn)
-            self.buttons.append(row_buttons)
-
-    def on_size_change(self):
-        size = self.board_size_var.get()
-        if size == "15x3":
-            self.rows = 15
-            self.cols = 3
-            self.game = GameState(rows=15, cols=3, win_v=4, win_h=3, win_d=3)
-        else:
-            self.rows = 12
-            self.cols = 4
-            self.game = GameState(rows=12, cols=4, win_v=5, win_h=4, win_d=4)
-        
+        self.create_widgets()
         self.recreate_board_ui()
 
-    def show_rules(self):
-        rules_win = tk.Toplevel(self)
-        rules_win.title("Game Rules & Information")
-        rules_win.geometry("550x600")
-        rules_win.configure(bg="#f4f4f4")
+        # Assets
+        try:
+            self.cat_img = tk.PhotoImage(file="cat.png")
+            self.dog_img = tk.PhotoImage(file="dog.png")
+        except:
+            self.cat_img = None
+            self.dog_img = None
+
+    def on_size_change(self):
+        """Restores the 12x4 board logic from the backup."""
+        if self.board_size_var.get() == "15x3":
+            self.game = GameState(rows=15, cols=3, win_v=4, win_h=3, win_d=3)
+        else:
+            # 12x4 variant usually needs harder win conditions
+            self.game = GameState(rows=12, cols=4, win_v=5, win_h=4, win_d=4)
+        self.recreate_board_ui()
+
+    def create_widgets(self):
+        top_frame = tk.Frame(self, bg="#333", height=60)
+        top_frame.pack(side=tk.TOP, fill=tk.X)
+        self.score_label = tk.Label(top_frame, text="Cats: 0 | Dogs: 0", fg="white", bg="#333", font=("Arial", 18, "bold"))
+        self.score_label.pack(pady=10)
+
+        left_panel = tk.Frame(self, width=320, bg="#ffffff", padx=15, pady=15, bd=1, relief=tk.SOLID)
+        left_panel.pack(side=tk.LEFT, fill=tk.Y)
         
-        # Make the modal dialog window
-        rules_win.transient(self)
-        rules_win.grab_set()
+        right_panel = tk.Frame(self, width=280, bg="#ffffff", padx=15, pady=15, bd=1, relief=tk.SOLID)
+        right_panel.pack(side=tk.RIGHT, fill=tk.Y)
 
-        title_lbl = tk.Label(rules_win, text="Cats vs Dogs TicTacToe - Manual", font=("Arial", 16, "bold"), bg="#f4f4f4")
-        title_lbl.pack(pady=10)
+        # Game Variant Selector
+        variant_f = tk.Frame(left_panel, bg="white")
+        variant_f.pack(fill=tk.X, pady=(0, 10))
+        tk.Label(variant_f, text="Variant:", font=("Arial", 10, "bold"), bg="white").pack(side=tk.LEFT)
+        tk.Radiobutton(variant_f, text="15x3", variable=self.board_size_var, value="15x3", bg="white", command=self.on_size_change).pack(side=tk.LEFT)
+        tk.Radiobutton(variant_f, text="12x4", variable=self.board_size_var, value="12x4", bg="white", command=self.on_size_change).pack(side=tk.LEFT)
 
-        # Scrollable text area
-        text_frame = tk.Frame(rules_win, bg="#f4f4f4")
-        text_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=5)
+        # TEAM P1
+        tk.Label(left_panel, text="TEAM CAT (P1)", font=("Arial", 12, "bold"), bg="#FFD54F").pack(fill=tk.X, pady=5)
+        tk.Radiobutton(left_panel, text="Human", variable=self.p1_type, value="Human", bg="white").pack(anchor="w")
+        tk.Radiobutton(left_panel, text="AI", variable=self.p1_type, value="AI", bg="white").pack(anchor="w")
         
-        scrollbar = tk.Scrollbar(text_frame)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        p1_f = tk.LabelFrame(left_panel, text="AI Config (P1)", bg="white")
+        p1_f.pack(fill=tk.X, pady=5)
+        tk.OptionMenu(p1_f, self.p1_provider, "Local Ollama", "Google Gemini", "OpenRouter", "Minimax").pack(fill=tk.X)
+        tk.Entry(p1_f, textvariable=self.p1_model_choice, font=("Consolas", 9)).pack(fill=tk.X, pady=2)
+        tk.Checkbutton(p1_f, text="Use Centaur Mode", variable=self.p1_centaur, bg="white").pack(anchor="w")
+
+        # TEAM P2
+        tk.Label(left_panel, text="TEAM DOG (P2)", font=("Arial", 12, "bold"), bg="#64B5F6", fg="white").pack(fill=tk.X, pady=(20, 5))
+        tk.Radiobutton(left_panel, text="Human", variable=self.p2_type, value="Human", bg="white").pack(anchor="w")
+        tk.Radiobutton(left_panel, text="AI", variable=self.p2_type, value="AI", bg="white").pack(anchor="w")
         
-        # Using a smaller font size as requested (Arial 10)
-        rules_text = tk.Text(text_frame, wrap=tk.WORD, yscrollcommand=scrollbar.set, font=("Arial", 10), bg="#ffffff", padx=10, pady=10)
-        rules_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.config(command=rules_text.yview)
+        p2_f = tk.LabelFrame(left_panel, text="AI Config (P2)", bg="white")
+        p2_f.pack(fill=tk.X, pady=5)
+        tk.OptionMenu(p2_f, self.p2_provider, "Local Ollama", "Google Gemini", "OpenRouter", "Minimax").pack(fill=tk.X)
+        tk.Entry(p2_f, textvariable=self.p2_model_choice, font=("Consolas", 9)).pack(fill=tk.X, pady=2)
+        tk.Checkbutton(p2_f, text="Use Centaur Mode", variable=self.p2_centaur, bg="white").pack(anchor="w")
 
-        msg = """Welcome to Cats vs Dogs TicTacToe!
+        # Next Round Button in Left Panel
+        self.next_round_btn = tk.Button(left_panel, text="Next Round", command=self.next_round, state=tk.DISABLED, bg="#4CAF50", fg="white", font=("Arial", 12, "bold"))
+        self.next_round_btn.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
 
-1. THE BASIC RULES
-• Setup: Choose between a 15x3 or 12x4 board.
-• You can choose to play as Cats (😇) or Dogs (😈).
-• Tournament Mode: Keep playing rounds until one faction reaches 5 wins!
+        # ANALYTICS in Right Panel
+        tk.Label(right_panel, text="LIVE STATS", font=("Arial", 10, "bold"), bg="white").pack(pady=(30, 0))
+        self.stats_box = tk.Text(right_panel, height=5, width=35, font=("Consolas", 9), bg="#f8f8f8")
+        self.stats_box.pack(pady=5)
+        self.status_label = tk.Label(right_panel, text="Ready", font=("Arial", 10, "italic"), bg="white", fg="green")
+        self.status_label.pack(pady=5)
 
-2. WINNING CONDITIONS
-On 15x3 Board:
-• Vertical: 4-in-a-row
-• Horizontal: 3-in-a-row
-• Diagonal: 3-in-a-row
+        tk.Checkbutton(right_panel, text="Sound ON", variable=self.sound_active, bg="white").pack(pady=5)
 
-On 12x4 Board:
-• Vertical: 5-in-a-row
-• Horizontal: 4-in-a-row
-• Diagonal: 4-in-a-row
+        self.board_container = tk.Frame(self, bg="#f0f0f0")
+        self.board_container.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=20)
+        self.board_frame = None
 
-3. AI OPPONENTS
-You can play against several different AI engines.
-• Minimax: A flawless mathematical engine. Depth 4 is strong, Depth 6 is nearly unbeatable but slower.
-• Monte Carlo (MCTS): A probabilistic engine that simulates thousands of random games to find the best move.
-• Standard LLMs: Chatbots like Llama 3 8B, Claude 3.5 Sonnet, etc. They evaluate the board mathematically according to standard tic-tac-toe logic.
+    def update_stats(self, latency=0, confidence="N/A"):
+        self.stats_box.delete("1.0", tk.END)
+        self.stats_box.insert(tk.END, f"Move Latency: {latency:.2f}s\n")
+        self.stats_box.insert(tk.END, f"AI Logic: {confidence}\n")
+        self.stats_box.insert(tk.END, f"Hardware: Ryzen AI 9 NPU\n")
 
-4. CENTAUR AUTO-PILOT
-To save time waiting for slow AI generations, this game features a 'Centaur' system. If the AI detects an extremely obvious forced win or forced block on the board, it automatically skips the LLM and instantly plays the mathematically perfect move!
-
-5. API KEYS (.env)
-To use the Generative AI models, you MUST configure an environment file:
-• Create a `.env` file in the game directory.
-• To use OpenRouter models (Llama, Gemma, Qwen, Mistral, Claude, GPT), add: OPENROUTER_API_KEY=your_key_here
-• To use Google Gemini models, add: GOOGLE_API_KEY=your_key_here
-"""
-        rules_text.insert(tk.END, msg)
-        rules_text.config(state=tk.DISABLED) # Make read-only
-
-        close_btn = tk.Button(rules_win, text="Close", font=("Arial", 12, "bold"), command=rules_win.destroy, bg="#e0e0e0", width=15)
-        close_btn.pack(pady=15)
+    def recreate_board_ui(self):
+        if self.board_frame: self.board_frame.destroy()
+        self.board_frame = tk.Frame(self.board_container, bg="#000")
+        self.board_frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+        self.dummy_img = tk.PhotoImage(width=1, height=1)
+        self.buttons = []
+        for r in range(self.game.rows):
+            row_btns = []
+            for c in range(self.game.cols):
+                btn = tk.Button(self.board_frame, image=self.dummy_img, compound="center", width=60, height=60, bg="white", command=lambda r=r, c=c: self.on_click(r, c))
+                btn.grid(row=r, column=c, padx=1, pady=1)
+                row_btns.append(btn)
+            self.buttons.append(row_btns)
 
     def on_click(self, r, c):
-        if self.ai_thinking or self.game.check_win()[0] != 0 or self.game.is_draw():
-            return
-            
-        if self.game.board[r][c] != 0:
-            return
-            
-        self.team_rbtn_cat.config(state=tk.DISABLED)
-        self.team_rbtn_dog.config(state=tk.DISABLED)
-        self.size_rbtn_15x3.config(state=tk.DISABLED)
-        self.size_rbtn_12x4.config(state=tk.DISABLED)
-            
-        if self.game.make_move(r, c, self.human_team.get()):
-            img = self.cat_img if self.human_team.get() == 1 else self.dog_img
-            snd = "cat_turn" if self.human_team.get() == 1 else "dog_turn"
-            self.buttons[r][c].config(image=img, text="")
-            if snd in self.sounds and self.sounds[snd] and self.sound_enabled.get():
-                random.choice(self.sounds[snd]).play()
-            
-            if self.check_game_over():
-                return
-                
-            self.ai_thinking = True
-            self.after(1000, self.trigger_ai_move)
+        if self.ai_thinking or self.game.board[r][c] != 0: return
+        p_type = self.p1_type.get() if self.game.current_turn == 1 else self.p2_type.get()
+        if p_type == "Human": self.apply_move(r, c)
 
-    def on_interrupt_click(self):
-        if self.ai_thinking:
-            # Interrupting the AI
-            self.ai_move_counter += 1
-            self.ai_thinking = False
-            self.status_label.config(text="AI Interrupted!\nSelect new AI & Retry.", fg="red")
-            self.interrupt_btn.config(text="Retry AI Move", bg="#FF9800", activebackground="#F57C00", state=tk.NORMAL)
-        else:
-            # Retrying the AI move
-            self.trigger_ai_move()
+    def apply_move(self, r, c):
+        p = self.game.current_turn
+        if self.game.make_move(r, c, p):
+            if self.cat_img and p == 1:
+                self.buttons[r][c].config(image=self.cat_img, width=60, height=60)
+            elif self.dog_img and p == 2:
+                self.buttons[r][c].config(image=self.dog_img, width=60, height=60)
+            else:
+                self.buttons[r][c].config(image=self.dummy_img, text="C" if p == 1 else "D", font=("Arial", 12, "bold"))
+            
+            # Sound safety check
+            snd_k = "cat_turn" if p == 1 else "dog_turn"
+            if self.sound_active.get() and snd_k in self.sounds:
+                random.choice(self.sounds[snd_k]).play()
+
+            if not self.check_game_over():
+                self.game.current_turn = 3 - p
+                n_type = self.p1_type.get() if self.game.current_turn == 1 else self.p2_type.get()
+                if n_type == "AI": self.after(500, self.trigger_ai_move)
 
     def trigger_ai_move(self):
-        self.ai_thinking = True
+        if self.game.check_win()[0] != 0 or self.game.is_draw(): return
+        self.ai_thinking, self.start_time = True, time.time()
         self.ai_move_counter += 1
-        current_counter = self.ai_move_counter
-        self.interrupt_btn.config(text="Interrupt AI", state=tk.NORMAL, bg="#f44336", activebackground="#e53935")
-                
-        ai_choice = self.ai_var.get()
-        if "Minimax" in ai_choice:
-            self.status_label.config(text="Minimax thinking...", fg="blue")
-            self.update_idletasks()
-            
-            ai_team = 3 - self.human_team.get()
-            depth_val = self.minimax_depth_var.get()
-            best_move = self.game.get_best_move(ai_team, depth=depth_val)
-            # Use after to allow UI strictly synchronous process to breathe momentarily
-            self.after(50, lambda: self.apply_ai_move(best_move[0] if best_move else None, best_move[1] if best_move else None, current_counter))
-        elif "Monte Carlo" in ai_choice:
-            self.status_label.config(text=f"MCTS simulating\n {self.mcts_sim_var.get()} games...", fg="blue")
-            self.update_idletasks()
-            
-            ai_team = 3 - self.human_team.get()
-            simulations = self.mcts_sim_var.get()
-            
-            # Using a thread so UI does not completely lock up during thousands of simulations
-            def mcts_worker():
-                best_move = self.game.get_best_move_mcts(ai_team, simulations=simulations)
-                self.after(0, lambda: self.apply_ai_move(best_move[0] if best_move else None, best_move[1] if best_move else None, current_counter))
-            
-            import threading
-            threading.Thread(target=mcts_worker, daemon=True).start()
-
-        else:
-            self.status_label.config(text="LLM thinking...", fg="purple")
-            provider = "Google Gemini" if "Gemini" in ai_choice else "OpenRouter"
-            model = self.ai_models[ai_choice]
-            ai_team = 3 - self.human_team.get()
-            evaluated_moves = self.game.get_evaluated_moves(ai_team, depth=2)
-            
-            if not evaluated_moves:
-                return
-                
-            best_score = evaluated_moves[0][1]
-            
-            # 1. Auto-Pilot: If there is a guaranteed win, take it immediately!
-            if best_score >= 50:
-                print(f"CENTAUR AUTO-PILOT: Found guaranteed win at {evaluated_moves[0][0]}, skipping LLM!")
-                self.after(50, lambda: self.apply_ai_move(evaluated_moves[0][0][0], evaluated_moves[0][0][1], current_counter))
-                return
-                
-            # 2. Filter out blunders (score <= -50)
-            safe_moves = [m for m, s in evaluated_moves if s > -50]
-            
-            # If all moves lose anyway, just give the LLM all moves
-            if not safe_moves:
-                safe_moves = [m for m, s in evaluated_moves]
-                
-            # 3. Auto-Pilot: If there is exactly ONE safe move (forced block), take it immediately!
-            if len(safe_moves) == 1:
-                print(f"CENTAUR AUTO-PILOT: Found forced block at {safe_moves[0]}, skipping LLM to prevent a blunder!")
-                self.after(50, lambda: self.apply_ai_move(safe_moves[0][0], safe_moves[0][1], current_counter))
-                return
-                
-            # 4. If multiple safe/strategic moves exist, annotate them for the LLM
-            annotated_moves = []
-            for (r, c), score in evaluated_moves:
-                if (r, c) not in safe_moves:
-                    continue # Do not present blunders to the LLM
-                
-                if score > 0:
-                    tag = " [Advantageous]"
-                else:
-                    tag = " [Safe]"
-                annotated_moves.append(f"({r}, {c}){tag}")
-                
-            moves_str = "\n".join(annotated_moves[:7]) # Provide top 7 options max
-            temp = self.temp_slider.get()
-            
-            # Simple callback, LLM is now restricted to only picking from safe_moves
-            def callback(r, c):
-                self.after(0, lambda: self.apply_ai_move(r, c, current_counter))
-                
-            get_llm_move(self.game.board, moves_str, safe_moves, provider, model, temp, self.game.last_move, callback)
-
-    def apply_ai_move(self, r, c, counter_at_time_of_request):
-        if counter_at_time_of_request != self.ai_move_counter:
-            return  # Move was interrupted/cancelled
-            
-        self.ai_thinking = False
-        self.interrupt_btn.config(text="Interrupt AI", state=tk.DISABLED, bg="#f44336", activebackground="#e53935")
-        self.status_label.config(text="Your Turn", fg="green")
-        if r is not None and c is not None:
-            ai_team = 3 - self.human_team.get()
-            if self.game.make_move(r, c, ai_team):
-                img = self.cat_img if ai_team == 1 else self.dog_img
-                snd = "cat_turn" if ai_team == 1 else "dog_turn"
-                self.buttons[r][c].config(image=img, text="")
-                if snd in self.sounds and self.sounds[snd] and self.sound_enabled.get():
-                    random.choice(self.sounds[snd]).play()
+        curr_c = self.ai_move_counter
         
-        self.check_game_over()
+        p = self.game.current_turn
+        # Determine which team variables to use
+        if p == 1:
+            prov, choice, cent = self.p1_provider.get(), self.p1_model_choice.get(), False
+        else:
+            prov, choice, cent = self.p2_provider.get(), self.p2_model_choice.get(), False
+
+        # Map friendly name to model string
+        mod = self.ai_models.get(choice, choice)
+        self.status_label.config(text=f"AI Thinking ({choice})...", fg="purple")
+
+        # 1. MCTS Logic (Restored from backup)
+        if prov == "Monte Carlo":
+            def mcts_worker():
+                m = self.game.get_best_move_mcts(p, simulations=1000)
+                self.after(0, lambda: self.apply_ai_move(m, "MCTS", curr_c))
+            threading.Thread(target=mcts_worker, daemon=True).start()
+            return
+
+        # 2. Minimax Logic
+        if prov == "Minimax":
+            m = self.game.get_best_move(p, depth=4)
+            self.after(500, lambda: self.apply_ai_move(m, "Optimal", curr_c))
+            return
+
+        # 3. LLM Logic (Existing)
+        evals = self.game.get_evaluated_moves(p, depth=2)
+        if not evals: return
+        safe = [m for m, s in evals if s > -50] or [m for m, s in evals]
+        m_str = "\n".join([f"({r}, {c}) [{'Adv' if s>0 else 'Safe'}]" for (r,c), s in evals if (r,c) in safe][:7])
+        
+        get_llm_move(self.game.board, m_str, safe, prov, mod, 0.1, self.game.last_move, 
+                     lambda r, c: self.after(0, lambda: self.apply_ai_move((r, c), "LLM", curr_c)))
+
+    def apply_ai_move(self, move, conf, counter):
+        if counter != self.ai_move_counter: return
+        self.update_stats(time.time() - self.start_time, conf)
+        self.ai_thinking = False
+        if move: self.apply_move(move[0], move[1])
 
     def check_game_over(self):
         winner, coords = self.game.check_win()
         if winner != 0:
-            for r, c in coords:
-                self.buttons[r][c].config(bg="#ff4d4d") # Highlight winning line in red
-            
-            if winner == 1:
-                self.cat_wins += 1
-                self.status_label.config(text="Cats win the round!", fg="orange")
-                if "cat_win_round" in self.sounds and self.sounds["cat_win_round"] and self.sound_enabled.get():
-                    random.choice(self.sounds["cat_win_round"]).play()
-                self.starting_team = 2 # Loser starts next round
-            else:
-                self.dog_wins += 1
-                self.status_label.config(text="Dogs win the round!", fg="orange")
-                if "dog_win_round" in self.sounds and self.sounds["dog_win_round"] and self.sound_enabled.get():
-                    random.choice(self.sounds["dog_win_round"]).play()
-                self.starting_team = 1 # Loser starts next round
-                
+            for r, c in coords: self.buttons[r][c].config(bg="#ff4d4d")
+            if winner == 1: self.cat_wins += 1
+            else: self.dog_wins += 1
             self.update_score()
             self.end_round()
             return True
-            
         if self.game.is_draw():
-            self.status_label.config(text="It's a draw!", fg="orange")
             self.end_round()
             return True
-            
         return False
-
-    def end_round(self):
-        self.ai_thinking = True # Lock the board logically
-                
-        if self.cat_wins >= self.target_wins or self.dog_wins >= self.target_wins:
-            champion = "Cats" if self.cat_wins >= self.target_wins else "Dogs"
-            
-            # Play tournament win sound
-            sound_key = "cat_win_tournament" if self.cat_wins >= self.target_wins else "dog_win_tournament"
-            if sound_key in self.sounds and self.sounds[sound_key] and self.sound_enabled.get():
-                random.choice(self.sounds[sound_key]).play()
-                
-            self.status_label.config(text=f"{champion} won the tournament!", fg="red", font=("Arial", 12, "bold"))
-            messagebox.showinfo("Tournament Over", f"🎉 {champion} win the tournament! 🎉")
-            
-            # Show the victory image popup
-            try:
-                img_file = "cats_win.png" if self.cat_wins >= self.target_wins else "dogs_win.png"
-                if os.path.exists(img_file):
-                    win_window = tk.Toplevel(self)
-                    win_window.title(f"{champion} Win!")
-                    win_window.config(bg="white")
-                    
-                    img = Image.open(img_file)
-                    img.thumbnail((600, 600), Image.Resampling.LANCZOS)
-                    photo = ImageTk.PhotoImage(img)
-                    
-                    lbl = tk.Label(win_window, image=photo, bg="white")
-                    lbl.image = photo  # keep reference
-                    lbl.pack(padx=20, pady=20)
-                    
-                    tk.Button(win_window, text="Awesome!", font=("Arial", 14), command=win_window.destroy).pack(pady=10)
-            except Exception as e:
-                print(f"Could not load victory image: {e}")
-                
-            self.next_round_btn.config(text="New Tournament", state=tk.NORMAL, bg="#2196F3")
-        else:
-            self.next_round_btn.config(text="Next Round", state=tk.NORMAL, bg="#4CAF50")
-            
-        self.interrupt_btn.config(text="Interrupt AI", state=tk.DISABLED, bg="#f44336")
-
-    def next_round(self):
-        self.ai_thinking = False
-        if self.cat_wins >= self.target_wins or self.dog_wins >= self.target_wins:
-            # Complete reset for new tournament
-            self.cat_wins = 0
-            self.dog_wins = 0
-            self.update_score()
-            self.starting_team = 1 # Default back to cats
-            self.team_rbtn_cat.config(state=tk.NORMAL)
-            self.team_rbtn_dog.config(state=tk.NORMAL)
-            self.size_rbtn_15x3.config(state=tk.NORMAL)
-            self.size_rbtn_12x4.config(state=tk.NORMAL)
-            
-        self.game.reset()
-        for r in range(self.rows):
-            for c in range(self.cols):
-                self.buttons[r][c].config(image="", text=" ", bg="white")
-                
-        self.status_label.config(text="Ready", fg="green")
-        self.next_round_btn.config(text="Next Round", state=tk.DISABLED, bg="#cccccc")
-        self.interrupt_btn.config(text="Interrupt AI", state=tk.DISABLED, bg="#f44336")
-        
-        if self.starting_team != self.human_team.get():
-            self.team_rbtn_cat.config(state=tk.DISABLED)
-            self.team_rbtn_dog.config(state=tk.DISABLED)
-            self.size_rbtn_15x3.config(state=tk.DISABLED)
-            self.size_rbtn_12x4.config(state=tk.DISABLED)
-            self.ai_thinking = True
-            self.after(500, self.trigger_ai_move)
 
     def update_score(self):
         self.score_label.config(text=f"Cats: {self.cat_wins} | Dogs: {self.dog_wins}")
+
+    def end_round(self):
+        self.ai_thinking = True
+        self.next_round_btn.config(state=tk.NORMAL)
+        if self.cat_wins >= self.target_wins or self.dog_wins >= self.target_wins:
+            winner = "Cats" if self.cat_wins >= self.target_wins else "Dogs"
+            messagebox.showinfo("Tournament Over", f"{winner} are the champions!")
+
+    def next_round(self):
+        if self.cat_wins >= self.target_wins or self.dog_wins >= self.target_wins:
+            self.cat_wins, self.dog_wins = 0, 0
+            self.update_score()
+        self.game.reset()
+        self.recreate_board_ui()
+        self.next_round_btn.config(state=tk.DISABLED)
+        self.ai_thinking = False
+        n_type = self.p1_type.get() if self.game.current_turn == 1 else self.p2_type.get()
+        if n_type == "AI": self.after(500, self.trigger_ai_move)
 
 if __name__ == "__main__":
     app = CatsDogsApp()

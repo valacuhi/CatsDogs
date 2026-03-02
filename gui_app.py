@@ -348,11 +348,13 @@ class CatsDogsApp(tk.Tk):
         self.controller.process_turn((r, c), human_latency=latency)
 
     def format_move(self, move_data):
-        p, r, c, short_code, full_code, lat, is_int, win_str = move_data
+        p, r, c, short_code, full_code, lat, action_flag, win_str = move_data
         coord = f"{chr(65+r)}{c+1}"
         
-        if is_int:
-            agent_str = f"INTERVENTION {full_code}"
+        if action_flag == "FB":
+            agent_str = f"FB {full_code}"
+        elif action_flag == "INT" or action_flag is True:
+            agent_str = f"INT {full_code}"
         else:
             agent_str = short_code
             
@@ -429,23 +431,23 @@ class CatsDogsApp(tk.Tk):
             random.choice(self.sounds[snd_k]).play()
             
         full_code, short_code = self.get_agent_code(p)
-        is_int = False
+        action_flag = ""
         
         if fallback_used:
-            is_int = True
+            action_flag = "FB"
             full_code = fallback_used
             short_code = fallback_used.split("(")[0]
         else:
             if p == 1:
                 if getattr(self, 'last_p1_full_code', None) and self.last_p1_full_code != full_code:
-                    is_int = True
+                    action_flag = "INT"
                 self.last_p1_full_code = full_code
             else:
                 if getattr(self, 'last_p2_full_code', None) and self.last_p2_full_code != full_code:
-                    is_int = True
+                    action_flag = "INT"
                 self.last_p2_full_code = full_code
 
-        self.move_list.append((p, r, c, short_code, full_code, latency, is_int, ""))
+        self.move_list.append((p, r, c, short_code, full_code, latency, action_flag, ""))
         self.update_history_display()
         self.turn_start_time = time.time()
 

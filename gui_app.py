@@ -89,10 +89,17 @@ class CatsDogsApp(tk.Tk):
         # Pre-declare dynamic widgets that cause lints
         self.dummy_img: any = None
         self.next_round_btn: any = None
-        self.stats_box: any = None
+        self.btn_restart_round: any = None
+        self.btn_restart_turn: any = None
+        self.btn_pause: any = None
         self.status_label: any = None
         self.history_box: any = None
         self.move_list = []
+        self.turn_start_time = 0.0
+        self.last_p1_full_code: any = None
+        self.last_p2_full_code: any = None
+        self.board_frame: any = None
+        self.board_container: any = None
 
         self.create_widgets()
         self.recreate_board_ui()
@@ -105,7 +112,7 @@ class CatsDogsApp(tk.Tk):
             self.cat_img = None
             self.dog_img = None
             
-        self.controller = None
+        self.controller: any = None
         self.setup_controller()
 
     def on_provider_change(self, player):
@@ -210,10 +217,22 @@ class CatsDogsApp(tk.Tk):
         self.next_round_btn = tk.Button(left_panel, text="Next Round", command=self.next_round, state=tk.DISABLED, bg="#4CAF50", fg="white", font=("Arial", 12, "bold"))
         self.next_round_btn.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
 
-        # ANALYTICS in Right Panel
-        tk.Label(right_panel, text="LIVE STATS", font=("Arial", 10, "bold"), bg="white").pack(pady=(30, 0))
-        self.stats_box = tk.Text(right_panel, height=5, width=35, font=("Consolas", 9), bg="#f8f8f8")
-        self.stats_box.pack(pady=5)
+        # Controls in Right Panel
+        ctrl_label = tk.Label(right_panel, text="GAME CONTROLS", font=("Arial", 10, "bold"), bg="white")
+        ctrl_label.pack(pady=(10, 5))
+        
+        btn_frame = tk.Frame(right_panel, bg="white")
+        btn_frame.pack(fill=tk.X, pady=5)
+        
+        self.btn_restart_round = tk.Button(btn_frame, text="Restart Round", bg="#f44336", fg="white", font=("Arial", 9, "bold"), command=self.restart_round)
+        self.btn_restart_round.pack(side=tk.LEFT, padx=2, expand=True, fill=tk.X)
+        
+        self.btn_restart_turn = tk.Button(btn_frame, text="Restart Turn", bg="#ff9800", fg="white", font=("Arial", 9, "bold"), command=self.restart_turn)
+        self.btn_restart_turn.pack(side=tk.LEFT, padx=2, expand=True, fill=tk.X)
+        
+        self.btn_pause = tk.Button(btn_frame, text="Pause AI", bg="#2196F3", fg="white", font=("Arial", 9, "bold"), command=self.toggle_pause)
+        self.btn_pause.pack(side=tk.LEFT, padx=2, expand=True, fill=tk.X)
+
         self.status_label = tk.Label(right_panel, text="Ready", font=("Arial", 10, "italic"), bg="white", fg="green")
         self.status_label.pack(pady=5)
 
@@ -223,7 +242,7 @@ class CatsDogsApp(tk.Tk):
         hist_frame = tk.Frame(right_panel, bg="white")
         hist_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        self.history_box = tk.Text(hist_frame, height=12, width=35, font=("Consolas", 9), bg="#f8f8f8")
+        self.history_box = tk.Text(hist_frame, height=12, width=42, font=("Consolas", 8), bg="#f8f8f8")
         self.history_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         hist_scroll = tk.Scrollbar(hist_frame, command=self.history_box.yview)
@@ -235,29 +254,6 @@ class CatsDogsApp(tk.Tk):
         self.board_container = tk.Frame(self, bg="#f0f0f0")
         self.board_container.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=20)
         self.board_frame = None
-
-    def update_stats(self, latency=0, confidence="N/A", provider="Local Ollama", depth=4, sims=1000, temp=0.1):
-        self.stats_box.delete("1.0", tk.END)
-        self.stats_box.insert(tk.END, f"Move Latency: {latency:.2f}s\n")
-        self.stats_box.insert(tk.END, f"AI Logic: {confidence}\n")
-        
-        if provider == "Human":
-            hardware = "Human Interaction"
-        elif provider in ["Local Ollama", "Minimax", "Monte Carlo"]:
-            hardware = self.hardware_choice.get()
-        else:
-            hardware = f"Cloud ({provider})"
-            
-        self.stats_box.insert(tk.END, f"Hardware: {hardware}\n")
-        
-        if provider == "Minimax":
-            self.stats_box.insert(tk.END, f"Setting: Depth {depth}\n")
-        elif provider == "Monte Carlo":
-            self.stats_box.insert(tk.END, f"Setting: Sims {sims}\n")
-        elif provider == "Human":
-            self.stats_box.insert(tk.END, f"Setting: N/A\n")
-        else:
-            self.stats_box.insert(tk.END, f"Setting: Temp {temp}\n")
 
     def recreate_board_ui(self):
         if self.board_frame: self.board_frame.destroy()
@@ -304,6 +300,29 @@ class CatsDogsApp(tk.Tk):
             mod = self.ai_models.get(model, model)
             return LLMAgent(provider=prov, model_name=mod, temperature=temp, prompt_prefix=prefix, fallback_enabled=fallback)
 
+    def get_agent_code(self, player_num):
+        p_type = self.p1_type.get() if player_num == 1 else self.p2_type.get()
+        if p_type == "Human":
+            return "human", "hu"
+        
+        prov = self.p1_provider.get() if player_num == 1 else self.p2_provider.get()
+        model = self.p1_model_choice.get() if player_num == 1 else self.p2_model_choice.get()
+        mm_depth = self.p1_mm_depth.get() if player_num == 1 else self.p2_mm_depth.get()
+        mcts_sims = self.p1_mcts_sims.get() if player_num == 1 else self.p2_mcts_sims.get()
+        temp = self.p1_temperature.get() if player_num == 1 else self.p2_temperature.get()
+
+        if prov == "Minimax":
+            return f"mm({mm_depth})", "mm"
+        elif prov == "Monte Carlo":
+            return f"mcts({mcts_sims})", "mcts"
+        elif prov == "Local Ollama":
+            return f"oll({model}, t={temp})", "oll"
+        elif prov == "Google Gemini":
+            return f"go({model}, t={temp})", "go"
+        elif prov == "OpenRouter":
+            return f"or({model}, t={temp})", "or"
+        return "unk", "unk"
+
     def setup_controller(self):
         if self.controller:
             self.controller.stop()
@@ -320,46 +339,84 @@ class CatsDogsApp(tk.Tk):
         self.controller.on_ai_thinking = self.on_ai_thinking_cb
         
         # Start game
+        self.turn_start_time = time.time()
         self.controller.process_turn()
 
     def on_click(self, r, c):
         if self.ai_thinking or self.game.board[r][c] != 0: return
-        self.update_stats(latency=0, confidence="Manual Input", provider="Human")
-        self.controller.process_turn((r, c))
+        latency = time.time() - getattr(self, 'turn_start_time', time.time())
+        self.controller.process_turn((r, c), human_latency=latency)
+
+    def format_move(self, move_data):
+        p, r, c, short_code, full_code, lat, is_int, win_str = move_data
+        coord = f"{chr(65+r)}{c+1}"
+        
+        if is_int:
+            agent_str = f"INTERVENTION {full_code}"
+        else:
+            agent_str = short_code
+            
+        lat_str = f"{lat:.2f}"
+
+        res = f"{coord} {agent_str}"
+        if lat_str:
+            res += f" {lat_str}"
+        if win_str:
+            res += f" {win_str}"
+            
+        return res
 
     def update_history_display(self):
         self.history_box.delete("1.0", tk.END)
+        
+        variant = self.board_size_var.get()
+        hw = self.hardware_choice.get()
+        p1_cent = "YES" if self.p1_centaur.get() else "NO"
+        p2_cent = "YES" if self.p2_centaur.get() else "NO"
+        p1_fall = "YES" if self.p1_fallback.get() else "NO"
+        p2_fall = "YES" if self.p2_fallback.get() else "NO"
+        ap = "YES" if self.auto_play.get() else "NO"
+        
+        p1_full, _ = self.get_agent_code(1)
+        p2_full, _ = self.get_agent_code(2)
+        
+        header1 = f"{variant}; {hw}; Centaur {p1_cent} {p2_cent}; ErrFallback {p1_fall} {p2_fall}; AutoPlay {ap}\n"
+        header2 = f"{p1_full}; {p2_full}\n"
+        self.history_box.insert(tk.END, header1 + header2)
+
         text = ""
         move_num = 1
         i = 0
         while i < len(self.move_list):
-            p1, m1 = self.move_list[i]
+            m1 = self.move_list[i]
+            p1 = m1[0]
+            
             if p1 == 1:
-                col1 = f"C: {m1:<3}"
+                col1 = self.format_move(m1)
                 if i + 1 < len(self.move_list):
-                    p2, m2 = self.move_list[i+1]
-                    if p2 == 2:
-                        col2 = f"D: {m2:<3}"
-                        text += f"{move_num:2d}. {col1} | {col2}\n"
+                    m2 = self.move_list[i+1]
+                    if m2[0] == 2:
+                        col2 = self.format_move(m2)
+                        text += f"{move_num:02d} {col1:<20} | {col2}\n"
                         i += 2
                         move_num += 1
                         continue
-                text += f"{move_num:2d}. {col1}\n"
+                text += f"{move_num:02d} {col1}\n"
                 i += 1
                 move_num += 1
             else:
-                col2 = f"D: {m1:<3}"
-                text += f"{move_num:2d}.          | {col2}\n"
+                col2 = self.format_move(m1)
+                text += f"{move_num:02d} {'-':<20} | {col2}\n"
                 i += 1
                 move_num += 1
                 
         self.history_box.insert(tk.END, text)
         self.history_box.see(tk.END)
 
-    def on_board_update(self, r, c, p):
-        self.after(0, lambda: self._gui_board_update(r, c, p))
+    def on_board_update(self, r, c, p, latency=0.0):
+        self.after(0, lambda: self._gui_board_update(r, c, p, latency))
         
-    def _gui_board_update(self, r, c, p):
+    def _gui_board_update(self, r, c, p, latency):
         if self.cat_img and p == 1:
             self.buttons[r][c].config(image=self.cat_img, width=60, height=60)
         elif self.dog_img and p == 2:
@@ -371,16 +428,46 @@ class CatsDogsApp(tk.Tk):
         if self.sound_active.get() and snd_k in self.sounds:
             random.choice(self.sounds[snd_k]).play()
             
-        move_str = f"{chr(65+r)}{c+1}"
-        self.move_list.append((p, move_str))
+        full_code, short_code = self.get_agent_code(p)
+        is_int = False
+        
+        if p == 1:
+            if getattr(self, 'last_p1_full_code', None) and self.last_p1_full_code != full_code:
+                is_int = True
+            self.last_p1_full_code = full_code
+        else:
+            if getattr(self, 'last_p2_full_code', None) and self.last_p2_full_code != full_code:
+                is_int = True
+            self.last_p2_full_code = full_code
+
+        self.move_list.append((p, r, c, short_code, full_code, latency, is_int, ""))
         self.update_history_display()
+        self.turn_start_time = time.time()
 
     def on_game_over(self, winner, coords):
         self.after(0, lambda: self._gui_game_over(winner, coords))
         
     def _gui_game_over(self, winner, coords):
         if winner != 0:
-            for r, c in coords: self.buttons[r][c].config(bg="#ff4d4d")
+            win_str = ""
+            if coords:
+                coords.sort()
+                r1, c1 = coords[0]
+                r2, c2 = coords[-1]
+                num = len(coords)
+                if r1 == r2:
+                    win_str = f"{chr(65+r1)}-{'X'*num}"
+                elif c1 == c2:
+                    win_str = f"{chr(65+r1)}{c1+1}-{'X'*num}"
+                else: 
+                    win_str = f"{chr(65+r1)}{c1+1}-{chr(65+r2)}{c2+1}"
+                    
+            if self.move_list:
+                p, r, c, sc, fc, lat, is_int, _ = self.move_list[-1]
+                self.move_list[-1] = (p, r, c, sc, fc, lat, is_int, win_str)
+                self.update_history_display()
+                
+            for mr, mc in coords: self.buttons[mr][mc].config(bg="#ff4d4d")
             if winner == 1: 
                 self.cat_wins += 1
                 self.next_starter = 2
@@ -416,6 +503,10 @@ class CatsDogsApp(tk.Tk):
             self.cat_wins, self.dog_wins = 0, 0
             self.next_starter = 1
             self.update_score()
+            
+        if hasattr(self, 'last_p1_full_code'): del self.last_p1_full_code
+        if hasattr(self, 'last_p2_full_code'): del self.last_p2_full_code
+            
         self.game.reset(starting_player=self.next_starter)
         self.move_list = []
         self.update_history_display()
@@ -423,6 +514,45 @@ class CatsDogsApp(tk.Tk):
         self.next_round_btn.config(state=tk.DISABLED)
         self.status_label.config(text="Ready")
         self.setup_controller()
+        if getattr(self.controller, 'paused', False):
+            self.toggle_pause()
+
+    def restart_round(self):
+        self.game.reset(starting_player=self.next_starter)
+        self.move_list = []
+        self.update_history_display()
+        self.recreate_board_ui()
+        self.status_label.config(text="Ready")
+        self.setup_controller()
+        if getattr(self.controller, 'paused', False):
+            self.toggle_pause()
+
+    def restart_turn(self):
+        if self.controller:
+            self.controller.on_board_update = lambda *args: None
+            self.controller.on_game_over = lambda *args: None
+            self.controller.on_error = lambda *args: None
+            self.controller.on_ai_thinking = lambda *args: None
+            self.controller.stop()
+            
+        self.ai_thinking = False
+        self.status_label.config(text="Turn Restarted", fg="orange")
+        self.setup_controller()
+        if getattr(self.controller, 'paused', False):
+            self.toggle_pause()
+
+    def toggle_pause(self):
+        if self.controller:
+            is_paused = getattr(self.controller, 'paused', False)
+            self.controller.paused = not is_paused
+            
+            if self.controller.paused:
+                self.btn_pause.config(text="Continue", bg="#4CAF50")
+                self.status_label.config(text="PAUSED", fg="orange")
+            else:
+                self.btn_pause.config(text="Pause AI", bg="#2196F3")
+                self.status_label.config(text="Ready", fg="green")
+                self.controller.process_turn()
 
 if __name__ == "__main__":
     app = CatsDogsApp()

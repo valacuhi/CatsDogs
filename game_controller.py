@@ -7,8 +7,9 @@ class GameController:
         self.get_p1 = get_p1_fn
         self.get_p2 = get_p2_fn
         
+        
         # Callbacks that the GUI can inject
-        self.on_board_update = lambda r, c, player, latency: None
+        self.on_board_update = lambda r, c, player, latency, fallback_used=None: None
         self.on_game_over = lambda winner, coords: None
         self.on_error = lambda err_msg: None
         self.on_ai_thinking = lambda is_thinking, status_text: None
@@ -32,7 +33,7 @@ class GameController:
         # If it's a human, we just apply the move directly
         if current_agent.name == "Human":
             if human_move:
-                self._apply_move(human_move, ai_latency=human_latency)
+                self._apply_move(human_move, ai_latency=human_latency, fallback_used=None)
             return
             
         # If it's an AI, we spawn a thread so the UI doesn't freeze
@@ -44,13 +45,14 @@ class GameController:
                 start_time = time.time()
                 move = current_agent.get_move(self.game, self.game.current_turn)
                 latency = time.time() - start_time
+                fallback = getattr(current_agent, "last_fallback_used", None)
                 
                 if self._stop_event.is_set():
                     self._processing_turn = False
                     return
 
                 if move:
-                    self._apply_move(move, ai_latency=latency)
+                    self._apply_move(move, ai_latency=latency, fallback_used=fallback)
                 else:
                     self.on_error(f"Agent {current_agent.name} failed to return a valid move.")
                     
@@ -63,7 +65,7 @@ class GameController:
 
         threading.Thread(target=ai_worker, daemon=True).start()
 
-    def _apply_move(self, move, ai_latency=0.0):
+    def _apply_move(self, move, ai_latency=0.0, fallback_used=None):
         if not move or self.game.board[move[0]][move[1]] != 0:
             return
             
@@ -72,7 +74,7 @@ class GameController:
         
         self.game.make_move(r, c, p)
         self.game.current_turn = 3 - p
-        self.on_board_update(r, c, p, ai_latency)
+        self.on_board_update(r, c, p, ai_latency, fallback_used)
         
         winner, coords = self.game.check_win()
         if winner != 0 or self.game.is_draw():

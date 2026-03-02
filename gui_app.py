@@ -138,7 +138,7 @@ class CatsDogsApp(tk.Tk):
         else:
             # 12x4 variant usually needs harder win conditions
             self.game = GameState(rows=12, cols=4, win_v=4, win_h=4, win_d=4)
-        self.recreate_board_ui()
+        self.restart_round()
 
     def create_widgets(self):
         top_frame = tk.Frame(self, bg="#333", height=60)

@@ -1,7 +1,11 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 from game_logic import GameState
-from ai_bridge import get_llm_move
+from game_controller import GameController
+from agents.human_agent import HumanAgent
+from agents.minimax_agent import MinimaxAgent
+from agents.mcts_agent import MCTSAgent
+from agents.llm_agent import LLMAgent
 import pygame
 import os
 import glob
@@ -87,6 +91,8 @@ class CatsDogsApp(tk.Tk):
         self.next_round_btn: any = None
         self.stats_box: any = None
         self.status_label: any = None
+        self.history_box: any = None
+        self.move_list = []
 
         self.create_widgets()
         self.recreate_board_ui()
@@ -98,6 +104,9 @@ class CatsDogsApp(tk.Tk):
         except:
             self.cat_img = None
             self.dog_img = None
+            
+        self.controller = None
+        self.setup_controller()
 
     def on_provider_change(self, player):
         """Updates the default model string when the provider changes."""
@@ -209,6 +218,19 @@ class CatsDogsApp(tk.Tk):
         self.status_label.pack(pady=5)
 
         tk.Checkbutton(right_panel, text="Sound ON", variable=self.sound_active, bg="white").pack(pady=5)
+        
+        tk.Label(right_panel, text="MOVE HISTORY", font=("Arial", 10, "bold"), bg="white").pack(pady=(15, 0))
+        hist_frame = tk.Frame(right_panel, bg="white")
+        hist_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        self.history_box = tk.Text(hist_frame, height=12, width=35, font=("Consolas", 9), bg="#f8f8f8")
+        self.history_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        hist_scroll = tk.Scrollbar(hist_frame, command=self.history_box.yview)
+        hist_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.history_box.config(yscrollcommand=hist_scroll.set)
+        
+        self.move_list = []
 
         self.board_container = tk.Frame(self, bg="#f0f0f0")
         self.board_container.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=20)
@@ -243,110 +265,120 @@ class CatsDogsApp(tk.Tk):
         self.board_frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
         self.dummy_img = tk.PhotoImage(width=1, height=1)
         self.buttons = []
+        
+        # Column labels (1, 2, 3...)
+        for c in range(self.game.cols):
+            lbl = tk.Label(self.board_frame, text=str(c+1), bg="#f0f0f0", font=("Arial", 10, "bold"))
+            lbl.grid(row=0, column=c+1, pady=(0, 2), sticky="nsew")
+            
         for r in range(self.game.rows):
+            # Row labels (A, B, C...)
+            lbl = tk.Label(self.board_frame, text=chr(65+r), bg="#f0f0f0", font=("Arial", 10, "bold"), width=3)
+            lbl.grid(row=r+1, column=0, padx=(0, 2), sticky="nsew")
+            
             row_btns = []
             for c in range(self.game.cols):
                 btn = tk.Button(self.board_frame, image=self.dummy_img, compound="center", width=60, height=60, bg="white", command=lambda r=r, c=c: self.on_click(r, c))
-                btn.grid(row=r, column=c, padx=1, pady=1)
+                btn.grid(row=r+1, column=c+1, padx=1, pady=1)
                 row_btns.append(btn)
             self.buttons.append(row_btns)
 
+    def get_agent(self, player_num):
+        p_type = self.p1_type.get() if player_num == 1 else self.p2_type.get()
+        if p_type == "Human":
+            return HumanAgent()
+            
+        prov = self.p1_provider.get() if player_num == 1 else self.p2_provider.get()
+        model = self.p1_model_choice.get() if player_num == 1 else self.p2_model_choice.get()
+        mm_depth = int(self.p1_mm_depth.get() if player_num == 1 else self.p2_mm_depth.get())
+        mcts_sims = int(self.p1_mcts_sims.get() if player_num == 1 else self.p2_mcts_sims.get())
+        temp = self.p1_temperature.get() if player_num == 1 else self.p2_temperature.get()
+        prefix = self.p1_prompt_prefix.get() if player_num == 1 else self.p2_prompt_prefix.get()
+        fallback = self.p1_fallback.get() if player_num == 1 else self.p2_fallback.get()
+
+        if prov == "Minimax":
+            return MinimaxAgent(depth=mm_depth)
+        elif prov == "Monte Carlo":
+            return MCTSAgent(simulations=mcts_sims)
+        else:
+            mod = self.ai_models.get(model, model)
+            return LLMAgent(provider=prov, model_name=mod, temperature=temp, prompt_prefix=prefix, fallback_enabled=fallback)
+
+    def setup_controller(self):
+        if self.controller:
+            self.controller.stop()
+            
+        self.controller = GameController(
+            self.game, 
+            lambda: self.get_agent(1), 
+            lambda: self.get_agent(2)
+        )
+        
+        self.controller.on_board_update = self.on_board_update
+        self.controller.on_game_over = self.on_game_over
+        self.controller.on_error = self.on_error
+        self.controller.on_ai_thinking = self.on_ai_thinking_cb
+        
+        # Start game
+        self.controller.process_turn()
+
     def on_click(self, r, c):
         if self.ai_thinking or self.game.board[r][c] != 0: return
-        p_type = self.p1_type.get() if self.game.current_turn == 1 else self.p2_type.get()
-        if p_type == "Human": 
-            self.update_stats(latency=0, confidence="Manual Input", provider="Human")
-            self.apply_move(r, c)
+        self.update_stats(latency=0, confidence="Manual Input", provider="Human")
+        self.controller.process_turn((r, c))
 
-    def apply_move(self, r, c):
-        p = self.game.current_turn
-        if self.game.make_move(r, c, p):
-            if self.cat_img and p == 1:
-                self.buttons[r][c].config(image=self.cat_img, width=60, height=60)
-            elif self.dog_img and p == 2:
-                self.buttons[r][c].config(image=self.dog_img, width=60, height=60)
+    def update_history_display(self):
+        self.history_box.delete("1.0", tk.END)
+        text = ""
+        move_num = 1
+        i = 0
+        while i < len(self.move_list):
+            p1, m1 = self.move_list[i]
+            if p1 == 1:
+                col1 = f"C: {m1:<3}"
+                if i + 1 < len(self.move_list):
+                    p2, m2 = self.move_list[i+1]
+                    if p2 == 2:
+                        col2 = f"D: {m2:<3}"
+                        text += f"{move_num:2d}. {col1} | {col2}\n"
+                        i += 2
+                        move_num += 1
+                        continue
+                text += f"{move_num:2d}. {col1}\n"
+                i += 1
+                move_num += 1
             else:
-                self.buttons[r][c].config(image=self.dummy_img, text="C" if p == 1 else "D", font=("Arial", 12, "bold"))
-            
-            # Sound safety check
-            snd_k = "cat_turn" if p == 1 else "dog_turn"
-            if self.sound_active.get() and snd_k in self.sounds:
-                random.choice(self.sounds[snd_k]).play()
+                col2 = f"D: {m1:<3}"
+                text += f"{move_num:2d}.          | {col2}\n"
+                i += 1
+                move_num += 1
+                
+        self.history_box.insert(tk.END, text)
+        self.history_box.see(tk.END)
 
-            if not self.check_game_over():
-                self.game.current_turn = 3 - p
-                n_type = self.p1_type.get() if self.game.current_turn == 1 else self.p2_type.get()
-                if n_type == "AI": self.after(500, self.trigger_ai_move)
-
-    def trigger_ai_move(self):
-        if self.game.check_win()[0] != 0 or self.game.is_draw(): return
-        self.ai_thinking, self.start_time = True, time.time()
-        self.ai_move_counter += 1
-        curr_c = self.ai_move_counter
+    def on_board_update(self, r, c, p):
+        self.after(0, lambda: self._gui_board_update(r, c, p))
         
-        p = self.game.current_turn
-        # Determine which team variables to use
-        if p == 1:
-            prov, choice, cent, fallback = self.p1_provider.get(), self.p1_model_choice.get(), False, self.p1_fallback.get()
-            mm_depth = int(self.p1_mm_depth.get())
-            mcts_sims = int(self.p1_mcts_sims.get())
-            temp = self.p1_temperature.get()
-            prefix = self.p1_prompt_prefix.get()
+    def _gui_board_update(self, r, c, p):
+        if self.cat_img and p == 1:
+            self.buttons[r][c].config(image=self.cat_img, width=60, height=60)
+        elif self.dog_img and p == 2:
+            self.buttons[r][c].config(image=self.dog_img, width=60, height=60)
         else:
-            prov, choice, cent, fallback = self.p2_provider.get(), self.p2_model_choice.get(), False, self.p2_fallback.get()
-            mm_depth = int(self.p2_mm_depth.get())
-            mcts_sims = int(self.p2_mcts_sims.get())
-            temp = self.p2_temperature.get()
-            prefix = self.p2_prompt_prefix.get()
+            self.buttons[r][c].config(image=self.dummy_img, text="C" if p == 1 else "D", font=("Arial", 12, "bold"))
+            
+        snd_k = "cat_turn" if p == 1 else "dog_turn"
+        if self.sound_active.get() and snd_k in self.sounds:
+            random.choice(self.sounds[snd_k]).play()
+            
+        move_str = f"{chr(65+r)}{c+1}"
+        self.move_list.append((p, move_str))
+        self.update_history_display()
 
-        # Map friendly name to model string
-        mod = self.ai_models.get(choice, choice)
-        self.status_label.config(text=f"AI Thinking ({choice})...", fg="purple")
-
-        # 1. MCTS Logic (Restored from backup)
-        if prov == "Monte Carlo":
-            def mcts_worker():
-                m = self.game.get_best_move_mcts(p, simulations=mcts_sims)
-                self.after(0, lambda: self.apply_ai_move(m, "MCTS", curr_c, prov, mm_depth, mcts_sims, temp))
-            threading.Thread(target=mcts_worker, daemon=True).start()
-            return
-
-        # 2. Minimax Logic
-        if prov == "Minimax":
-            m = self.game.get_best_move(p, depth=mm_depth)
-            self.after(500, lambda: self.apply_ai_move(m, "Optimal", curr_c, prov, mm_depth, mcts_sims, temp))
-            return
-
-        # 3. LLM Logic (Existing)
-        evals = self.game.get_evaluated_moves(p, depth=2)
-        if not evals: return
-        safe = [m for m, s in evals if s > -50] or [m for m, s in evals]
-        m_str = "\n".join([f"({r}, {c}) [{'Adv' if s>0 else 'Safe'}]" for (r,c), s in evals if (r,c) in safe][:7])
+    def on_game_over(self, winner, coords):
+        self.after(0, lambda: self._gui_game_over(winner, coords))
         
-        def handle_llm_callback(r, c, is_fallback):
-            if is_fallback:
-                # Dispatch to Minimax as Default Fallback
-                fm = self.game.get_best_move(p, depth=mm_depth)
-                self.after(500, lambda: self.apply_ai_move(fm, "Optimal (Fallback)", curr_c, prov, mm_depth, mcts_sims, temp))
-            else:
-                self.after(0, lambda: self.apply_ai_move((r, c) if r is not None else None, "LLM", curr_c, prov, mm_depth, mcts_sims, temp))
-
-        get_llm_move(self.game.board, m_str, safe, prov, mod, temp, prefix, self.game.last_move, fallback, handle_llm_callback)
-
-    def apply_ai_move(self, move, conf, counter, provider="Local Ollama", depth=4, sims=1000, temp=0.1):
-        if counter != self.ai_move_counter: return
-        self.update_stats(time.time() - self.start_time, conf, provider, depth, sims, temp)
-        
-        if move is None:
-            self.status_label.config(text="API Error / Invalid Move", fg="red")
-            self.ai_thinking = False
-            return
-
-        self.ai_thinking = False
-        if move: self.apply_move(move[0], move[1])
-
-    def check_game_over(self):
-        winner, coords = self.game.check_win()
+    def _gui_game_over(self, winner, coords):
         if winner != 0:
             for r, c in coords: self.buttons[r][c].config(bg="#ff4d4d")
             if winner == 1: 
@@ -357,17 +389,21 @@ class CatsDogsApp(tk.Tk):
                 self.next_starter = 1
             self.update_score()
             self.end_round()
-            return True
-        if self.game.is_draw():
+        elif self.game.is_draw():
             self.end_round()
-            return True
-        return False
+
+    def on_error(self, err_msg):
+        self.after(0, lambda: self.status_label.config(text=err_msg, fg="red"))
+        
+    def on_ai_thinking_cb(self, is_thinking, status_text):
+        self.ai_thinking = is_thinking
+        color = "purple" if is_thinking else "green"
+        self.after(0, lambda: self.status_label.config(text=status_text, fg=color))
 
     def update_score(self):
         self.score_label.config(text=f"Cats: {self.cat_wins} | Dogs: {self.dog_wins}")
 
     def end_round(self):
-        self.ai_thinking = True
         self.next_round_btn.config(state=tk.NORMAL)
         if self.cat_wins >= self.target_wins or self.dog_wins >= self.target_wins:
             winner = "Cats" if self.cat_wins >= self.target_wins else "Dogs"
@@ -381,11 +417,12 @@ class CatsDogsApp(tk.Tk):
             self.next_starter = 1
             self.update_score()
         self.game.reset(starting_player=self.next_starter)
+        self.move_list = []
+        self.update_history_display()
         self.recreate_board_ui()
         self.next_round_btn.config(state=tk.DISABLED)
-        self.ai_thinking = False
-        n_type = self.p1_type.get() if self.game.current_turn == 1 else self.p2_type.get()
-        if n_type == "AI": self.after(500, self.trigger_ai_move)
+        self.status_label.config(text="Ready")
+        self.setup_controller()
 
 if __name__ == "__main__":
     app = CatsDogsApp()

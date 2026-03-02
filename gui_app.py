@@ -219,7 +219,9 @@ class CatsDogsApp(tk.Tk):
         self.stats_box.insert(tk.END, f"Move Latency: {latency:.2f}s\n")
         self.stats_box.insert(tk.END, f"AI Logic: {confidence}\n")
         
-        if provider in ["Local Ollama", "Minimax", "Monte Carlo"]:
+        if provider == "Human":
+            hardware = "Human Interaction"
+        elif provider in ["Local Ollama", "Minimax", "Monte Carlo"]:
             hardware = self.hardware_choice.get()
         else:
             hardware = f"Cloud ({provider})"
@@ -230,6 +232,8 @@ class CatsDogsApp(tk.Tk):
             self.stats_box.insert(tk.END, f"Setting: Depth {depth}\n")
         elif provider == "Monte Carlo":
             self.stats_box.insert(tk.END, f"Setting: Sims {sims}\n")
+        elif provider == "Human":
+            self.stats_box.insert(tk.END, f"Setting: N/A\n")
         else:
             self.stats_box.insert(tk.END, f"Setting: Temp {temp}\n")
 
@@ -250,7 +254,9 @@ class CatsDogsApp(tk.Tk):
     def on_click(self, r, c):
         if self.ai_thinking or self.game.board[r][c] != 0: return
         p_type = self.p1_type.get() if self.game.current_turn == 1 else self.p2_type.get()
-        if p_type == "Human": self.apply_move(r, c)
+        if p_type == "Human": 
+            self.update_stats(latency=0, confidence="Manual Input", provider="Human")
+            self.apply_move(r, c)
 
     def apply_move(self, r, c):
         p = self.game.current_turn

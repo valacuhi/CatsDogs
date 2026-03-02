@@ -413,10 +413,10 @@ class CatsDogsApp(tk.Tk):
         self.history_box.insert(tk.END, text)
         self.history_box.see(tk.END)
 
-    def on_board_update(self, r, c, p, latency=0.0):
-        self.after(0, lambda: self._gui_board_update(r, c, p, latency))
+    def on_board_update(self, r, c, p, latency=0.0, fallback_used=None):
+        self.after(0, lambda: self._gui_board_update(r, c, p, latency, fallback_used))
         
-    def _gui_board_update(self, r, c, p, latency):
+    def _gui_board_update(self, r, c, p, latency, fallback_used):
         if self.cat_img and p == 1:
             self.buttons[r][c].config(image=self.cat_img, width=60, height=60)
         elif self.dog_img and p == 2:
@@ -431,14 +431,19 @@ class CatsDogsApp(tk.Tk):
         full_code, short_code = self.get_agent_code(p)
         is_int = False
         
-        if p == 1:
-            if getattr(self, 'last_p1_full_code', None) and self.last_p1_full_code != full_code:
-                is_int = True
-            self.last_p1_full_code = full_code
+        if fallback_used:
+            is_int = True
+            full_code = fallback_used
+            short_code = fallback_used.split("(")[0]
         else:
-            if getattr(self, 'last_p2_full_code', None) and self.last_p2_full_code != full_code:
-                is_int = True
-            self.last_p2_full_code = full_code
+            if p == 1:
+                if getattr(self, 'last_p1_full_code', None) and self.last_p1_full_code != full_code:
+                    is_int = True
+                self.last_p1_full_code = full_code
+            else:
+                if getattr(self, 'last_p2_full_code', None) and self.last_p2_full_code != full_code:
+                    is_int = True
+                self.last_p2_full_code = full_code
 
         self.move_list.append((p, r, c, short_code, full_code, latency, is_int, ""))
         self.update_history_display()

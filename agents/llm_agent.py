@@ -18,6 +18,7 @@ class LLMAgent(BaseAgent):
         self.temperature = temperature
         self.prompt_prefix = prompt_prefix
         self.fallback_enabled = fallback_enabled
+        self.last_fallback_used = None
 
     def get_evaluated_moves(self, game_state, player_id, depth=2):
         moves = game_state.get_available_moves()
@@ -45,6 +46,7 @@ class LLMAgent(BaseAgent):
         return "\n".join(rows_str)
 
     def get_move(self, game_state, player_id: int):
+        self.last_fallback_used = None
         evals = self.get_evaluated_moves(game_state, player_id, depth=2)
         if not evals: return None
         
@@ -133,6 +135,7 @@ Finally, your very last line MUST be exactly: "MOVE: r, c" where r and c are the
             
             print(f"AI returned invalid format or illegal move: {result_text}")
             if self.fallback_enabled:
+                self.last_fallback_used = "mm(4)"
                 mm = MinimaxAgent(depth=4)
                 return mm.get_move(game_state, player_id)
             else:
@@ -141,6 +144,7 @@ Finally, your very last line MUST be exactly: "MOVE: r, c" where r and c are the
         except Exception as e:
             print(f"LLMAgent Error: {e}")
             if self.fallback_enabled:
+                self.last_fallback_used = "mm(4)"
                 mm = MinimaxAgent(depth=4)
                 return mm.get_move(game_state, player_id)
             else:

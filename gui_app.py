@@ -14,6 +14,12 @@ import time
 import threading
 
 try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("dotenv library not found, relying on manually set environment variables.")
+
+try:
     from PIL import Image, ImageTk
 except ImportError:
     pass

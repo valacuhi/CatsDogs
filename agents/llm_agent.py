@@ -4,12 +4,6 @@ import re
 from agents.base_agent import BaseAgent
 from agents.minimax_agent import MinimaxAgent
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
-
 class LLMAgent(BaseAgent):
     def __init__(self, provider, model_name, temperature, prompt_prefix, fallback_enabled, name="LLMAgent"):
         super().__init__(name)

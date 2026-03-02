@@ -274,7 +274,7 @@ class CatsDogsApp(tk.Tk):
             
             row_btns = []
             for c in range(self.game.cols):
-                btn = tk.Button(self.board_frame, image=self.dummy_img, compound="center", width=60, height=60, bg="white", command=lambda r=r, c=c: self.on_click(r, c))
+                btn = tk.Button(self.board_frame, image=self.dummy_img, compound="center", width=45, height=45, bg="white", command=lambda r=r, c=c: self.on_click(r, c))
                 btn.grid(row=r+1, column=c+1, padx=1, pady=1)
                 row_btns.append(btn)
             self.buttons.append(row_btns)
@@ -420,9 +420,9 @@ class CatsDogsApp(tk.Tk):
         
     def _gui_board_update(self, r, c, p, latency, fallback_used):
         if self.cat_img and p == 1:
-            self.buttons[r][c].config(image=self.cat_img, width=60, height=60)
+            self.buttons[r][c].config(image=self.cat_img, width=45, height=45)
         elif self.dog_img and p == 2:
-            self.buttons[r][c].config(image=self.dog_img, width=60, height=60)
+            self.buttons[r][c].config(image=self.dog_img, width=45, height=45)
         else:
             self.buttons[r][c].config(image=self.dummy_img, text="C" if p == 1 else "D", font=("Arial", 12, "bold"))
             

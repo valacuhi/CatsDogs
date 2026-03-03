@@ -101,6 +101,7 @@ class CatsDogsApp(tk.Tk):
         self.status_label: any = None
         self.history_box: any = None
         self.move_list = []
+        self.tournament_log = []
         self.turn_start_time = 0.0
         self.last_p1_full_code: any = None
         self.last_p2_full_code: any = None
@@ -109,6 +110,13 @@ class CatsDogsApp(tk.Tk):
 
         self.create_widgets()
         self.recreate_board_ui()
+    
+    def copy_log_to_clipboard(self):
+        """Copies the content of the history box to the clipboard."""
+        self.clipboard_clear()
+        self.clipboard_append(self.history_box.get("1.0", tk.END))
+        self.status_label.config(text="Log copied to clipboard!", fg="blue")
+        self.after(2000, lambda: self.status_label.config(text="Ready", fg="green"))
 
         # Assets
         try:
@@ -238,6 +246,9 @@ class CatsDogsApp(tk.Tk):
         
         self.btn_pause = tk.Button(btn_frame, text="Pause AI", bg="#2196F3", fg="white", font=("Arial", 9, "bold"), command=self.toggle_pause)
         self.btn_pause.pack(side=tk.LEFT, padx=2, expand=True, fill=tk.X)
+        
+        btn_copy_log = tk.Button(btn_frame, text="Copy Log", bg="#FFC107", fg="black", font=("Arial", 9, "bold"), command=self.copy_log_to_clipboard)
+        btn_copy_log.pack(side=tk.LEFT, padx=2, expand=True, fill=tk.X)
 
         self.status_label = tk.Label(right_panel, text="Ready", font=("Arial", 10, "italic"), bg="white", fg="green")
         self.status_label.pack(pady=5)
@@ -392,6 +403,37 @@ class CatsDogsApp(tk.Tk):
         header2 = f"{p1_full}; {p2_full}\n"
         self.history_box.insert(tk.END, header1 + header2)
 
+        # Display accumulated tournament log
+        for round_moves in self.tournament_log:
+            text = ""
+            move_num = 1
+            i = 0
+            while i < len(round_moves):
+                m1 = round_moves[i]
+                p1 = m1[0]
+                
+                if p1 == 1:
+                    col1 = self.format_move(m1)
+                    if i + 1 < len(round_moves):
+                        m2 = round_moves[i+1]
+                        if m2[0] == 2:
+                            col2 = self.format_move(m2)
+                            text += f"{move_num:02d} {col1:<20} | {col2}\n"
+                            i += 2
+                            move_num += 1
+                            continue
+                    text += f"{move_num:02d} {col1}\n"
+                    i += 1
+                    move_num += 1
+                else:
+                    col2 = self.format_move(m1)
+                    text += f"{move_num:02d} {'-':<20} | {col2}\n"
+                    i += 1
+                    move_num += 1
+            self.history_box.insert(tk.END, text)
+            self.history_box.insert(tk.END, "--- End of Round ---\n")
+
+        # Display current round's moves
         text = ""
         move_num = 1
         i = 0
@@ -512,9 +554,13 @@ class CatsDogsApp(tk.Tk):
             self.after(1000, lambda: self.next_round())
 
     def next_round(self):
+        if self.move_list:
+            self.tournament_log.append(list(self.move_list))
+
         if self.cat_wins >= self.target_wins or self.dog_wins >= self.target_wins:
             self.cat_wins, self.dog_wins = 0, 0
             self.next_starter = 1
+            self.tournament_log = []
             self.update_score()
             
         if hasattr(self, 'last_p1_full_code'): del self.last_p1_full_code
@@ -531,6 +577,8 @@ class CatsDogsApp(tk.Tk):
             self.toggle_pause()
 
     def restart_round(self):
+        if self.move_list:
+            self.tournament_log.append(list(self.move_list))
         self.game.reset(starting_player=self.next_starter)
         self.move_list = []
         self.update_history_display()

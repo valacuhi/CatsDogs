@@ -8,6 +8,11 @@ This project serves as a Python practice platform with a strong focus on decoupl
 ![Main Game Interface](./images/main_dashboard.png)
 *Figure 1: The workbench interface showing the 15x3 grid and agent selection.*
 
+## Game Rules
+
+- **15x3 Variant:** The board is 15 rows tall and 3 columns wide. To win, you must connect **4 tokens vertically**, or **3 tokens horizontally/diagonally**.
+- **12x4 Variant:** The board is 12 rows tall and 4 columns wide. To win, you must connect **4 tokens in a row in any direction** (vertically, horizontally, or diagonally).
+
 ## Key Features
 
 - **Advanced Variants:** Play on non-standard grids like 15x3 (requires 4 vertical, 3 horizontal/diagonal) or 12x4 (requires 4-in-a-row in any direction).
@@ -26,7 +31,7 @@ The codebase employs a clean Model-View-Controller (MVC) and Strategy pattern:
 ## Playing without Python (Windows)
 If you just want to play the game on Windows without installing Python or setting up an environment, you can download the ready-to-run `.exe` file:
 1. Go to the **Actions** tab at the top of this GitHub repository.
-2. Click on the latest green successful run under "Build Windows Executable".
+2. Click on the **latest** green successful run under "Build Windows Executable".
 3. Scroll to the bottom of the page to the **Artifacts** section.
 4. Download the `CatsDogs-Windows-Exe.zip` file, extract it, and double-click `CatsDogs.exe` to play!
 *(Note: You will still need to place your `.env` file in the same folder as the `.exe` if you want to use the Cloud LLM agents.)*
@@ -58,7 +63,7 @@ If you are a student running this project for the first time, follow these steps
    pip install -r requirements.txt
    ```
 
-4. **Set up your API Keys**
+4. **Set up your API Keys** (optional, only if you want to use Cloud LLMs)
    To use the Cloud LLMs (like Gemini or OpenRouter), you must provide your own API keys.
    - Copy the provided template file:
      ```bash
@@ -71,6 +76,17 @@ If you are a student running this project for the first time, follow these steps
    ```bash
    python gui_app.py
    ```
+
+### Using OpenRouter Models
+OpenRouter allows you to route prompts to dozens of different AI models (like Claude, Gemini, Meta Llama, etc.) using a single API key.
+To use an OpenRouter model in the game:
+1. Ensure your `OPENROUTER_API_KEY` is set in your `.env` file.
+2. In the game GUI, select **OpenRouter** as the AI Config Provider.
+3. In the text box directly below the provider dropdown, type the exact **OpenRouter Model ID** you want to use.
+   - Example to use Claude 3.5 Sonnet: `anthropic/claude-3.5-sonnet`
+   - Example to use Llama 3 70B: `meta-llama/llama-3-70b-instruct`
+   - Example to use DeepSeek R1: `deepseek/deepseek-r1`
+4. Make sure to hit enter or click away from the text box to save the model choice before the round starts.
 
 ## Move History Logger
 The Move History panel on the right side of the screen offers an incredibly detailed timeline of the current match.

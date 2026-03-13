@@ -19,6 +19,47 @@ The codebase employs a clean Model-View-Controller (MVC) and Strategy pattern:
 - `agents/`: A modular directory standardizing `BaseAgent`. Allows instantaneous swapping between `human_agent.py`, `minimax_agent.py`, `mcts_agent.py`, and `llm_agent.py` without mutating the core engine.
 - `gui_app.py`: A decoupled Tkinter view overlay that strictly renders state events raised by the controller.
 
+## Installation & Setup
+
+If you are a student running this project for the first time, follow these steps to install the required dependencies and configure your API keys.
+
+1. **Clone the repository and enter the directory**
+   ```bash
+   git clone https://github.com/valacuhi/CatsDogs.git
+   cd CatsDogs
+   ```
+
+2. **Create and activate a virtual environment**
+   - *Windows:*
+     ```bash
+     python -m venv venv
+     venv\\Scripts\\activate
+     ```
+   - *Mac/Linux:*
+     ```bash
+     python -m venv venv
+     source venv/bin/activate
+     ```
+
+3. **Install the dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Set up your API Keys**
+   To use the Cloud LLMs (like Gemini or OpenRouter), you must provide your own API keys.
+   - Copy the provided template file:
+     ```bash
+     cp .env.template .env
+     ```
+     *(On Windows Command Prompt, use `copy .env.template .env`)*
+   - Open the new `.env` file in a text editor and paste your personal API keys next to the corresponding variables.
+
+5. **Run the Application**
+   ```bash
+   python gui_app.py
+   ```
+
 ## Move History Logger
 The Move History panel on the right side of the screen offers an incredibly detailed timeline of the current match.
 

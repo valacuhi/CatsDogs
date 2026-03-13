@@ -19,6 +19,14 @@ The codebase employs a clean Model-View-Controller (MVC) and Strategy pattern:
 - `agents/`: A modular directory standardizing `BaseAgent`. Allows instantaneous swapping between `human_agent.py`, `minimax_agent.py`, `mcts_agent.py`, and `llm_agent.py` without mutating the core engine.
 - `gui_app.py`: A decoupled Tkinter view overlay that strictly renders state events raised by the controller.
 
+## Playing without Python (Windows)
+If you just want to play the game on Windows without installing Python or setting up an environment, you can download the ready-to-run `.exe` file:
+1. Go to the **Actions** tab at the top of this GitHub repository.
+2. Click on the latest green successful run under "Build Windows Executable".
+3. Scroll to the bottom of the page to the **Artifacts** section.
+4. Download the `CatsDogs-Windows-Exe.zip` file, extract it, and double-click `CatsDogs.exe` to play!
+*(Note: You will still need to place your `.env` file in the same folder as the `.exe` if you want to use the Cloud LLM agents.)*
+
 ## Installation & Setup
 
 If you are a student running this project for the first time, follow these steps to install the required dependencies and configure your API keys.

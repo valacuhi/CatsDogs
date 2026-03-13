@@ -31,9 +31,11 @@ The codebase employs a clean Model-View-Controller (MVC) and Strategy pattern:
 ## Playing without Python (Windows)
 If you just want to play the game on Windows without installing Python or setting up an environment, you can download the ready-to-run `.exe` file:
 1. Go to the **Actions** tab at the top of this GitHub repository.
-2. Click on the **latest** green successful run under "Build Windows Executable".
-3. Scroll to the bottom of the page to the **Artifacts** section.
-4. Download the `CatsDogs-Windows-Exe.zip` file, extract it, and double-click `CatsDogs.exe` to play!
+2. Click on the latest green successful run on the left.
+3. Scroll down to the bottom of the page to the **Artifacts** section.
+4. Download the **`CatsDogs-Windows-Exe`** file.
+5. Extract the `.zip` file, and double-click `CatsDogs.exe` to play!
+
 *(Note: You will still need to place your `.env` file in the same folder as the `.exe` if you want to use the Cloud LLM agents.)*
 
 ## Installation & Setup

@@ -110,13 +110,6 @@ class CatsDogsApp(tk.Tk):
 
         self.create_widgets()
         self.recreate_board_ui()
-    
-    def copy_log_to_clipboard(self):
-        """Copies the content of the history box to the clipboard."""
-        self.clipboard_clear()
-        self.clipboard_append(self.history_box.get("1.0", tk.END))
-        self.status_label.config(text="Log copied to clipboard!", fg="blue")
-        self.after(2000, lambda: self.status_label.config(text="Ready", fg="green"))
 
         # Assets
         try:
@@ -128,6 +121,13 @@ class CatsDogsApp(tk.Tk):
             
         self.controller: any = None
         self.setup_controller()
+
+    def copy_log_to_clipboard(self):
+        """Copies the content of the history box to the clipboard."""
+        self.clipboard_clear()
+        self.clipboard_append(self.history_box.get("1.0", tk.END))
+        self.status_label.config(text="Log copied to clipboard!", fg="blue")
+        self.after(2000, lambda: self.status_label.config(text="Ready", fg="green"))
 
     def on_provider_change(self, player):
         """Updates the default model string when the provider changes."""

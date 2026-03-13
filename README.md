@@ -4,6 +4,10 @@ A dynamic, modernized take on Tic-Tac-Toe functioning as an AI experimentation w
 
 This project serves as a Python practice platform with a strong focus on decoupled MVC architectures, agent-based game loops, and testing the reasoning capabilities of Local LLMs (Ollama) and Cloud LLMs (Google Gemini, OpenRouter) against traditional deterministic algorithms (Minimax, Monte Carlo Tree Search).
 
+## Preview
+![Main Game Interface](./images/main_dashboard.png)
+*Figure 1: The workbench interface showing the 15x3 grid and agent selection.*
+
 ## Key Features
 
 - **Advanced Variants:** Play on non-standard grids like 15x3 (requires 4 vertical, 3 horizontal/diagonal) or 12x4 (requires 4-in-a-row in any direction).

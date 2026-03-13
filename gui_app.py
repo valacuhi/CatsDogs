@@ -8,6 +8,7 @@ from agents.mcts_agent import MCTSAgent
 from agents.llm_agent import LLMAgent
 import pygame
 import os
+import sys
 import glob
 import random
 import time
@@ -23,6 +24,15 @@ try:
     from PIL import Image, ImageTk
 except ImportError:
     pass
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 class CatsDogsApp(tk.Tk):
 
@@ -40,7 +50,7 @@ class CatsDogsApp(tk.Tk):
             self.sound_active.set(True)
             # Only try to load sounds if mixer actually initialized
             for s in ["cat_turn", "dog_turn", "cat_win_round", "dog_win_round", "cat_win_tournament", "dog_win_tournament"]:
-                files = glob.glob(os.path.join("Audio", f"{s}*.mp3"))
+                files = glob.glob(resource_path(os.path.join("Audio", f"{s}*.mp3")))
                 if files:
                     self.sounds[s] = [pygame.mixer.Sound(f) for f in files]
         except (ImportError, NotImplementedError, pygame.error):
@@ -113,8 +123,8 @@ class CatsDogsApp(tk.Tk):
 
         # Assets
         try:
-            self.cat_img = tk.PhotoImage(file="cat.png")
-            self.dog_img = tk.PhotoImage(file="dog.png")
+            self.cat_img = tk.PhotoImage(file=resource_path("cat.png"))
+            self.dog_img = tk.PhotoImage(file=resource_path("dog.png"))
         except:
             self.cat_img = None
             self.dog_img = None
